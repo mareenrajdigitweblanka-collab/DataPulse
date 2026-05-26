@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18.4
+    container_name: datapulse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: digitweb
+      POSTGRES_PASSWORD: 990807
+      POSTGRES_DB: datapulse_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - datapulse_postgres_data:/var/lib/postgresql
+
+  redis:
+    image: redis:8.6.3
+    container_name: datapulse-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  datapulse_postgres_data:
