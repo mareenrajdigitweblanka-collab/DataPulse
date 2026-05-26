@@ -2,6 +2,9 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
 
+import { db } from "./db/client.js";
+import { users } from "./db/schema.js";
+
 dotenv.config({ path: "../.env" });
 
 const app = Fastify({
@@ -20,6 +23,14 @@ app.get("/health", async () => {
   };
 });
 
+app.get("/db-test", async () => {
+  const allUsers = await db.select().from(users);
+  return {
+    connected: true,
+    usersCount: allUsers.length,
+  };
+});
+
 const port = Number(process.env.PORT || 4000);
 
 try {
@@ -29,3 +40,4 @@ try {
   app.log.error(error);
   process.exit(1);
 }
+
