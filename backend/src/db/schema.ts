@@ -72,6 +72,7 @@ export const jobs = pgTable(
     errorMessage: text("error_message"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
@@ -114,3 +115,12 @@ export const results = pgTable(
     ),
   ]
 );
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type Job = typeof jobs.$inferSelect;
+export type NewJob = typeof jobs.$inferInsert;
+
+export type Result = typeof results.$inferSelect;
+export type NewResult = typeof results.$inferInsert;
