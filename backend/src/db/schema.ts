@@ -6,18 +6,49 @@ import {
   jsonb,
   integer,
   index,
+  pgEnum
 } from "drizzle-orm/pg-core";
+
+export const channelEnum = pgEnum("channel_type", ["amazon", "ebay", "google", "shopify"]);
+export const statusEnum = pgEnum("job_status", ["queued", "running", "filtering", "done", "error", "timeout"]);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
 
-  name: text("name"),
+  name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * password_reset_tokens table
+ * Stores hashed reset tokens.
+ * We never store the raw reset token in the database.
+ */
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    tokenHash: text("token_hash").notNull().unique(),
+
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("password_reset_tokens_user_id_idx").on(table.userId),
+    index("password_reset_tokens_token_hash_idx").on(table.tokenHash),
+  ]
+);
 
 export const jobs = pgTable(
   "jobs",
@@ -28,11 +59,11 @@ export const jobs = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
 
-    channel: text("channel").notNull(),
+    channel: channelEnum("channel").notNull(),
     query: text("query").notNull(),
     filters: jsonb("filters").notNull().default({}),
 
-    status: text("status").notNull().default("queued"),
+    status: statusEnum("status").notNull().default("queued"),
     queuePosition: integer("queue_position"),
     progressPercent: integer("progress_percent").notNull().default(0),
 
@@ -68,7 +99,7 @@ export const results = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
 
-    channel: text("channel").notNull(),
+    channel: channelEnum("channel").notNull(),
     position: integer("position").notNull(),
     data: jsonb("data").notNull(),
 
