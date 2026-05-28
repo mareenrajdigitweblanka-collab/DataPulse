@@ -1,5 +1,4 @@
 import { buildApp } from "./app.js";
-import { amazonWorker } from "./workers/amazon/fake-amazon.worker.js";
 
 const app = await buildApp();
 
