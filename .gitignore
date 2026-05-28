@@ -1,14 +1,56 @@
-node_modules
+```
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.db
+.python-version
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
 .env
+.env.local
 .env.*
 !.env.example
 
-dist
-build
-.next
-.turbo
-coverage
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
+# OS
 .DS_Store
-*.log
-pnpm-debug.log*
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+*.coverage
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+```

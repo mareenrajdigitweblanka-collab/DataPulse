@@ -44,3 +44,8 @@ export async function requireAuth(
     });
   }
 }
+
+/**
+ * Alias for requireAuth to be used with addHook
+ */
+export const authenticate = requireAuth;
