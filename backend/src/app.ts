@@ -5,7 +5,6 @@ import "./env.js";
 import { registerErrorHandler } from "./plugins/error-handler.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { authRoutes } from "./auth/auth.routes.js";
-import { jobsRoutes } from "./jobs/jobs.routes.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -22,9 +21,6 @@ export async function buildApp() {
   await app.register(healthRoutes);
   await app.register(authRoutes, {
     prefix: "/api/v1/auth",
-  });
-  await app.register(jobsRoutes, {
-    prefix: "/api/v1/jobs",
   });
 
   return app;
