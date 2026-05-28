@@ -1,4 +1,5 @@
 import { buildApp } from "./app.js";
+import { amazonWorker } from "./workers/amazon/fake-amazon.worker.js";
 
 const app = await buildApp();
 
@@ -7,6 +8,7 @@ const port = Number(process.env.PORT || 4000);
 try {
   await app.listen({ port, host: "0.0.0.0" });
   console.log(`Backend running on http://localhost:${port}`);
+  console.log("Amazon worker started and listening for jobs...");
 } catch (error) {
   app.log.error(error);
   process.exit(1);
