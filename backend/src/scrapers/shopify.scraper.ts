@@ -224,18 +224,30 @@ export async function scrapeShopifyProducts(input: {
   storeUrl: string;
   query: string;
   filters: ShopifyFilters;
-  maxPages?: number;
+
+  /**
+   * null means scrape all available product pages.
+   */
+  maxPages?: number | null;
 }) {
   const normalizedStoreUrl = await normalizeAndValidateStoreUrl(input.storeUrl);
 
-  const maxPages = input.maxPages ?? 2;
+  /**
+   * null = no fixed page limit.
+   * The loop stops only when Shopify has no more products.
+   */
+  const maxPages = input.maxPages ?? null;
   const allProducts: ShopifyProduct[] = [];
 
-  for (let page = 1; page <= maxPages; page += 1) {
+  for (let page = 1; ; page += 1) {
+    if (maxPages !== null && page > maxPages) {
+      break;
+    }
+
     const endpoint = new URL(`${normalizedStoreUrl}/products.json`);
 
     /**
-     * Shopify max limit is commonly 250.
+     * Shopify commonly allows up to 250 products per page.
      */
     endpoint.searchParams.set("limit", "250");
     endpoint.searchParams.set("page", String(page));
@@ -244,6 +256,9 @@ export async function scrapeShopifyProducts(input: {
 
     const apiProducts = json.products ?? [];
 
+    /**
+     * No products means no more pages.
+     */
     if (apiProducts.length === 0) {
       break;
     }
@@ -260,8 +275,16 @@ export async function scrapeShopifyProducts(input: {
 
     allProducts.push(...mappedProducts);
 
+    console.log({
+      event: "shopify_page_scraped",
+      storeUrl: normalizedStoreUrl,
+      page,
+      productsOnPage: apiProducts.length,
+      matchedProductsSoFar: allProducts.length,
+    });
+
     /**
-     * If Shopify returns less than limit, there are no more pages.
+     * If Shopify returns less than 250, this is the last page.
      */
     if (apiProducts.length < 250) {
       break;
@@ -270,5 +293,3 @@ export async function scrapeShopifyProducts(input: {
 
   return allProducts;
 }
-
-

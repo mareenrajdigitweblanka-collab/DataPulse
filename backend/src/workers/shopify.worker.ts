@@ -77,10 +77,14 @@ const worker = new Worker<ShopifyJobData>(
           storeUrl: data.filters.storeUrl,
           query: data.query,
           filters: data.filters,
-          maxPages: 2,
+          /**
+     * No page limit.
+     * Scrape the whole Shopify store until products.json has no more pages.
+     */
+          maxPages: null,
         }),
-        5 * 60 * 1000,
-        "Shopify job timed out after 5 minutes"
+        15 * 60 * 1000,
+        "Shopify job timed out after 15 minutes"
       );
     } catch (error) {
       const message =
