@@ -5,12 +5,14 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "worker:shopify": "tsx watch src/workers/shopify.worker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "start:worker:shopify": "node dist/workers/shopify.worker.js"
   },
   "keywords": [],
   "author": "",
