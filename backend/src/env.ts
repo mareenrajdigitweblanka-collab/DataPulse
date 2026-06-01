@@ -37,6 +37,38 @@ const envSchema = z.object({
   EBAY_CLIENT_SECRET: z.string().min(1).optional(),
   EBAY_MARKETPLACE_ID: z.string().min(1).default("EBAY_US"),
   EBAY_SEARCH_LIMIT: z.coerce.number().int().min(1).max(200).default(50),
+
+
+  /**
+  * Google Shopping via SerpApi.
+  * Optional here so Shopify backend can still run without SerpApi key.
+  * Google worker validates it when used.
+  */
+  SERPAPI_API_KEY: z.string().min(1).optional(),
+
+  GOOGLE_SHOPPING_SEARCH_LIMIT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .default(200),
+
+  GOOGLE_SHOPPING_PAGE_SIZE: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(40),
+
+  GOOGLE_SHOPPING_MAX_PAGES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(10),
+    
+  GOOGLE_SHOPPING_DEFAULT_COUNTRY: z.string().min(2).default("us"),
+  GOOGLE_SHOPPING_DEFAULT_LANGUAGE: z.string().min(2).default("en"),
 });
 
 const parsed = envSchema.safeParse(process.env);

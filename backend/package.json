@@ -7,11 +7,13 @@
     "dev": "tsx watch src/server.ts",
     "worker:shopify": "tsx watch src/workers/shopify.worker.ts",
     "worker:ebay": "tsx watch src/workers/ebay.worker.ts",
+    "worker:google": "tsx watch src/workers/google.worker.ts",
 
     "build": "tsc",
     "start": "node dist/server.js",
     "start:worker:shopify": "node dist/workers/shopify.worker.js",
     "start:worker:ebay": "node dist/workers/ebay.worker.js",
+    "start:worker:google": "node dist/workers/google.worker.js",
     
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

@@ -28,6 +28,14 @@ import {
 
 import { createEbayJobRecord } from "./jobs.repository.js";
 
+import {
+  addGoogleJob,
+  getGoogleQueueDepth,
+  getNextGoogleQueuePosition,
+} from "../queue/google.queue.js";
+
+import { createGoogleJobRecord } from "./jobs.repository.js";
+
 
 function getAuthenticatedUser(request: FastifyRequest) {
   if (!request.user?.id) {
@@ -74,105 +82,143 @@ export async function jobsRoutes(app: FastifyInstance) {
    * Creates a Shopify scrape job and pushes it to BullMQ.
    */
   app.post("/", { preHandler: requireAuth }, async (request, reply) => {
-    const user = getAuthenticatedUser(request);
-    const body = createJobSchema.parse(request.body);
+  const user = getAuthenticatedUser(request);
+  const body = createJobSchema.parse(request.body);
 
-    await enforceJobRateLimit(user.id);
+  await enforceJobRateLimit(user.id);
 
-    if (body.channel === "shopify") {
-      const queueDepth = await getShopifyQueueDepth();
+  if (body.channel === "shopify") {
+    const queueDepth = await getShopifyQueueDepth();
 
-      /**
-       * Keep this high or remove it later if you want unlimited queued jobs.
-       * Worker concurrency still protects the system.
-       */
-      if (queueDepth.total >= 10000) {
-        throw new AppError({
-          statusCode: 503,
-          code: "queue_full",
-          message: "Shopify queue is temporarily full. Please retry later.",
-          details: {
-            channel: "shopify",
-            retryAfterSeconds: 60,
-          },
-        });
-      }
-
-      const queuePosition = await getNextShopifyQueuePosition();
-
-      const dbJob = await createShopifyJobRecord({
-        userId: user.id,
-        query: body.query,
-        filters: body.filters,
-        queuePosition,
-      });
-
-      await addShopifyJob({
-        jobId: dbJob.id,
-        userId: user.id,
-        channel: "shopify",
-        query: body.query,
-        filters: body.filters,
-      });
-
-      return reply.code(202).send({
-        success: true,
-        data: {
-          jobId: dbJob.id,
-          status: dbJob.status,
-          queuePosition,
+    if (queueDepth.total >= 10000) {
+      throw new AppError({
+        statusCode: 503,
+        code: "queue_full",
+        message: "Shopify queue is temporarily full. Please retry later.",
+        details: {
+          channel: "shopify",
+          retryAfterSeconds: 60,
         },
       });
     }
 
-    if (body.channel === "ebay") {
-      const queueDepth = await getEbayQueueDepth();
+    const queuePosition = await getNextShopifyQueuePosition();
 
-      if (queueDepth.total >= 10000) {
-        throw new AppError({
-          statusCode: 503,
-          code: "queue_full",
-          message: "eBay queue is temporarily full. Please retry later.",
-          details: {
-            channel: "ebay",
-            retryAfterSeconds: 60,
-          },
-        });
-      }
-
-      const queuePosition = await getNextEbayQueuePosition();
-
-      const dbJob = await createEbayJobRecord({
-        userId: user.id,
-        query: body.query,
-        filters: body.filters,
-        queuePosition,
-      });
-
-      await addEbayJob({
-        jobId: dbJob.id,
-        userId: user.id,
-        channel: "ebay",
-        query: body.query,
-        filters: body.filters,
-      });
-
-      return reply.code(202).send({
-        success: true,
-        data: {
-          jobId: dbJob.id,
-          status: dbJob.status,
-          queuePosition,
-        },
-      });
-    }
-
-    throw new AppError({
-      statusCode: 400,
-      code: "unsupported_channel",
-      message: "Unsupported channel",
+    const dbJob = await createShopifyJobRecord({
+      userId: user.id,
+      query: body.query,
+      filters: body.filters,
+      queuePosition,
     });
+
+    await addShopifyJob({
+      jobId: dbJob.id,
+      userId: user.id,
+      channel: "shopify",
+      query: body.query,
+      filters: body.filters,
+    });
+
+    return reply.code(202).send({
+      success: true,
+      data: {
+        jobId: dbJob.id,
+        status: dbJob.status,
+        queuePosition,
+      },
+    });
+  }
+
+  if (body.channel === "ebay") {
+    const queueDepth = await getEbayQueueDepth();
+
+    if (queueDepth.total >= 10000) {
+      throw new AppError({
+        statusCode: 503,
+        code: "queue_full",
+        message: "eBay queue is temporarily full. Please retry later.",
+        details: {
+          channel: "ebay",
+          retryAfterSeconds: 60,
+        },
+      });
+    }
+
+    const queuePosition = await getNextEbayQueuePosition();
+
+    const dbJob = await createEbayJobRecord({
+      userId: user.id,
+      query: body.query,
+      filters: body.filters,
+      queuePosition,
+    });
+
+    await addEbayJob({
+      jobId: dbJob.id,
+      userId: user.id,
+      channel: "ebay",
+      query: body.query,
+      filters: body.filters,
+    });
+
+    return reply.code(202).send({
+      success: true,
+      data: {
+        jobId: dbJob.id,
+        status: dbJob.status,
+        queuePosition,
+      },
+    });
+  }
+
+  if (body.channel === "google") {
+    const queueDepth = await getGoogleQueueDepth();
+
+    if (queueDepth.total >= 10000) {
+      throw new AppError({
+        statusCode: 503,
+        code: "queue_full",
+        message: "Google Shopping queue is temporarily full. Please retry later.",
+        details: {
+          channel: "google",
+          retryAfterSeconds: 60,
+        },
+      });
+    }
+
+    const queuePosition = await getNextGoogleQueuePosition();
+
+    const dbJob = await createGoogleJobRecord({
+      userId: user.id,
+      query: body.query,
+      filters: body.filters,
+      queuePosition,
+    });
+
+    await addGoogleJob({
+      jobId: dbJob.id,
+      userId: user.id,
+      channel: "google",
+      query: body.query,
+      filters: body.filters,
+    });
+
+    return reply.code(202).send({
+      success: true,
+      data: {
+        jobId: dbJob.id,
+        status: dbJob.status,
+        queuePosition,
+      },
+    });
+  }
+
+  throw new AppError({
+    statusCode: 400,
+    code: "unsupported_channel",
+    message: "Unsupported channel",
   });
+});
 
   /**
    * GET /api/v1/jobs

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const channelSchema = z.enum(["shopify", "ebay"]);
+export const channelSchema = z.enum(["shopify", "ebay", "google"]);
 
 export const shopifyFiltersSchema = z.object({
   storeUrl: z
@@ -32,9 +32,50 @@ export const ebayFiltersSchema = z.object({
   buyItNowOnly: z.coerce.boolean().optional().default(false),
 });
 
+export const googleFiltersSchema = z.object({
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+
+  /**
+   * Google country parameter maps to SerpApi gl.
+   * SerpApi expects country codes such as us, uk, ca, au, de.
+   */
+  country: z
+    .enum(["us", "uk", "ca", "au", "de"])
+    .optional()
+    .default("us"),
+
+  /**
+   * Search result language maps to SerpApi hl.
+   */
+  language: z.string().min(2).max(10).optional().default("en"),
+
+  /**
+   * For now, sort is mostly post-processing.
+   * SerpApi/Google Shopping sorting behavior can vary.
+   */
+  sortBy: z
+    .enum(["relevance", "price_asc", "price_desc", "rating"])
+    .optional()
+    .default("relevance"),
+
+  /**
+   * Optional store/source text filter.
+   * Example: Amazon, eBay, Walmart, Best Buy.
+   */
+  storeName: z.string().trim().optional().default(""),
+
+  /**
+   * Google result availability is not always consistent.
+   * We keep this but apply only when mapped isInStock is false.
+   */
+  inStockOnly: z.coerce.boolean().optional().default(false),
+});
+
+
 /**
- * Shopify allows empty query because we use it for whole-store scraping.
- * eBay requires query because Browse API search is keyword-based.
+ * Shopify allows empty query for whole-store scraping.
+ * eBay and Google require query because they are search APIs.
  */
 export const createJobSchema = z.discriminatedUnion("channel", [
   z.object({
@@ -57,11 +98,22 @@ export const createJobSchema = z.discriminatedUnion("channel", [
       .max(200, "query must be at most 200 characters"),
     filters: ebayFiltersSchema,
   }),
+
+  z.object({
+    channel: z.literal("google"),
+    query: z
+      .string()
+      .trim()
+      .min(1, "query is required for Google Shopping")
+      .max(200, "query must be at most 200 characters"),
+    filters: googleFiltersSchema,
+  }),
 ]);
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type ShopifyFilters = z.infer<typeof shopifyFiltersSchema>;
 export type EbayFilters = z.infer<typeof ebayFiltersSchema>;
+export type GoogleFilters = z.infer<typeof googleFiltersSchema>;
 
 export const jobIdParamsSchema = z.object({
   id: z.string().uuid(),
