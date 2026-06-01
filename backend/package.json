@@ -8,13 +8,13 @@
     "worker:shopify": "tsx watch src/workers/shopify.worker.ts",
     "worker:ebay": "tsx watch src/workers/ebay.worker.ts",
     "worker:google": "tsx watch src/workers/google.worker.ts",
-
+    "worker:amazon": "tsx watch src/workers/amazon.worker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "start:worker:shopify": "node dist/workers/shopify.worker.js",
     "start:worker:ebay": "node dist/workers/ebay.worker.js",
     "start:worker:google": "node dist/workers/google.worker.js",
-    
+    "start:worker:amazon": "node dist/workers/amazon.worker.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
@@ -41,6 +41,7 @@
     "fastify": "^5.8.5",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
+    "playwright": "^1.60.0",
     "postgres": "^3.4.9",
     "socket.io": "^4.8.3",
     "zod": "^4.4.3"

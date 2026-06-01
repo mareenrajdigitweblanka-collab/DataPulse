@@ -69,6 +69,39 @@ const envSchema = z.object({
     
   GOOGLE_SHOPPING_DEFAULT_COUNTRY: z.string().min(2).default("us"),
   GOOGLE_SHOPPING_DEFAULT_LANGUAGE: z.string().min(2).default("en"),
+
+  /**
+   * Amazon scraping config.
+   * Keep concurrency low because Amazon blocks aggressively.
+   */
+  AMAZON_BASE_URL: z.string().url().default("https://www.amazon.com"),
+
+  AMAZON_RESULT_LIMIT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20),
+
+  AMAZON_MAX_PAGES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(2),
+
+  AMAZON_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .default(1),
+
+  AMAZON_HEADLESS: z.coerce.boolean().default(true),
+
+  AMAZON_PROXY_SERVER: z.string().optional().default(""),
+  AMAZON_PROXY_USERNAME: z.string().optional().default(""),
+  AMAZON_PROXY_PASSWORD: z.string().optional().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);

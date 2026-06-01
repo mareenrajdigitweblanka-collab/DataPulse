@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "../db/client.js";
 import { jobs, results } from "../db/schema.js";
-import type { EbayFilters, GoogleFilters, ShopifyFilters } from "./jobs.schema.js";
+import type { AmazonFilters, EbayFilters, GoogleFilters, ShopifyFilters } from "./jobs.schema.js";
 
 export async function createShopifyJobRecord(input: {
   userId: string;
@@ -256,6 +256,68 @@ export async function completeGoogleJobWithResults(input: {
             jobId: input.jobId,
             userId: input.userId,
             channel: "google" as const,
+            position: index + 1,
+            data: safeProduct,
+          };
+        })
+      );
+    }
+
+    await tx
+      .update(jobs)
+      .set({
+        status: "done",
+        progressPercent: 100,
+        totalScraped: input.scrapedCount,
+        totalFiltered: input.filteredProducts.length,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, input.jobId));
+  });
+}
+
+export async function createAmazonJobRecord(input: {
+  userId: string;
+  query: string;
+  filters: AmazonFilters;
+  queuePosition: number;
+}) {
+  const [job] = await db
+    .insert(jobs)
+    .values({
+      userId: input.userId,
+      channel: "amazon",
+      query: input.query,
+      filters: input.filters,
+      status: "queued",
+      queuePosition: input.queuePosition,
+      progressPercent: 0,
+    })
+    .returning();
+
+  return job;
+}
+
+export async function completeAmazonJobWithResults(input: {
+  jobId: string;
+  userId: string;
+  scrapedCount: number;
+  filteredProducts: unknown[];
+}) {
+  await db.transaction(async (tx) => {
+    await tx.delete(results).where(eq(results.jobId, input.jobId));
+
+    if (input.filteredProducts.length > 0) {
+      await tx.insert(results).values(
+        input.filteredProducts.map((product, index) => {
+          const safeProduct =
+            typeof product === "string" ? JSON.parse(product) : product;
+
+          return {
+            jobId: input.jobId,
+            userId: input.userId,
+            channel: "amazon" as const,
             position: index + 1,
             data: safeProduct,
           };

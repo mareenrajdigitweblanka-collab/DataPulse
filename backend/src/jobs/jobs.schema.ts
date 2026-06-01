@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const channelSchema = z.enum(["shopify", "ebay", "google"]);
+export const channelSchema = z.enum(["shopify", "ebay", "google", "amazon"]);
 
 export const shopifyFiltersSchema = z.object({
   storeUrl: z
@@ -72,10 +72,19 @@ export const googleFiltersSchema = z.object({
   inStockOnly: z.coerce.boolean().optional().default(false),
 });
 
+export const amazonFiltersSchema = z.object({
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+  inStockOnly: z.coerce.boolean().optional().default(false),
+
+  minRating: z.coerce.number().min(1).max(5).optional(),
+  minReviewCount: z.coerce.number().int().min(0).optional(),
+  primeOnly: z.coerce.boolean().optional().default(false),
+});
 
 /**
  * Shopify allows empty query for whole-store scraping.
- * eBay and Google require query because they are search APIs.
+ * eBay, Google, and Amazon require query because they are search APIs.
  */
 export const createJobSchema = z.discriminatedUnion("channel", [
   z.object({
@@ -108,12 +117,23 @@ export const createJobSchema = z.discriminatedUnion("channel", [
       .max(200, "query must be at most 200 characters"),
     filters: googleFiltersSchema,
   }),
+
+    z.object({
+    channel: z.literal("amazon"),
+    query: z
+      .string()
+      .trim()
+      .min(1, "query is required for Amazon")
+      .max(200, "query must be at most 200 characters"),
+    filters: amazonFiltersSchema,
+  }),
 ]);
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type ShopifyFilters = z.infer<typeof shopifyFiltersSchema>;
 export type EbayFilters = z.infer<typeof ebayFiltersSchema>;
 export type GoogleFilters = z.infer<typeof googleFiltersSchema>;
+export type AmazonFilters = z.infer<typeof amazonFiltersSchema>;
 
 export const jobIdParamsSchema = z.object({
   id: z.string().uuid(),
