@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "../db/client.js";
 import { jobs, results } from "../db/schema.js";
-import type { ShopifyFilters } from "./jobs.schema.js";
+import type { EbayFilters, ShopifyFilters } from "./jobs.schema.js";
 
 export async function createShopifyJobRecord(input: {
   userId: string;
@@ -151,4 +151,66 @@ export async function getResultsForJob(input: {
     .select()
     .from(results)
     .where(and(eq(results.jobId, input.jobId), eq(results.userId, input.userId)));
+}
+
+export async function createEbayJobRecord(input: {
+  userId: string;
+  query: string;
+  filters: EbayFilters;
+  queuePosition: number;
+}) {
+  const [job] = await db
+    .insert(jobs)
+    .values({
+      userId: input.userId,
+      channel: "ebay",
+      query: input.query,
+      filters: input.filters,
+      status: "queued",
+      queuePosition: input.queuePosition,
+      progressPercent: 0,
+    })
+    .returning();
+
+  return job;
+}
+
+export async function completeEbayJobWithResults(input: {
+  jobId: string;
+  userId: string;
+  scrapedCount: number;
+  filteredProducts: unknown[];
+}) {
+  await db.transaction(async (tx) => {
+    await tx.delete(results).where(eq(results.jobId, input.jobId));
+
+    if (input.filteredProducts.length > 0) {
+      await tx.insert(results).values(
+        input.filteredProducts.map((product, index) => {
+          const safeProduct =
+            typeof product === "string" ? JSON.parse(product) : product;
+
+          return {
+            jobId: input.jobId,
+            userId: input.userId,
+            channel: "ebay" as const,
+            position: index + 1,
+            data: safeProduct,
+          };
+        })
+      );
+    }
+
+    await tx
+      .update(jobs)
+      .set({
+        status: "done",
+        progressPercent: 100,
+        totalScraped: input.scrapedCount,
+        totalFiltered: input.filteredProducts.length,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, input.jobId));
+  });
 }

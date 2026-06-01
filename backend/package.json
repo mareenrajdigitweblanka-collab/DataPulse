@@ -6,13 +6,17 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "worker:shopify": "tsx watch src/workers/shopify.worker.ts",
+    "worker:ebay": "tsx watch src/workers/ebay.worker.ts",
+
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:worker:shopify": "node dist/workers/shopify.worker.js",
+    "start:worker:ebay": "node dist/workers/ebay.worker.js",
+    
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "start:worker:shopify": "node dist/workers/shopify.worker.js"
+    "db:migrate": "drizzle-kit migrate"
   },
   "keywords": [],
   "author": "",

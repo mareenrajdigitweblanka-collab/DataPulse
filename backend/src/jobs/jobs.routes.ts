@@ -20,6 +20,15 @@ import {
 } from "../queue/shopify.queue.js";
 import { redisConnection } from "../queue/redis.js";
 
+import {
+  addEbayJob,
+  getEbayQueueDepth,
+  getNextEbayQueuePosition,
+} from "../queue/ebay.queue.js";
+
+import { createEbayJobRecord } from "./jobs.repository.js";
+
+
 function getAuthenticatedUser(request: FastifyRequest) {
   if (!request.user?.id) {
     throw new AppError({
@@ -70,61 +79,98 @@ export async function jobsRoutes(app: FastifyInstance) {
 
     await enforceJobRateLimit(user.id);
 
-    /**
-     * We only allow Shopify right now.
-     */
-    if (body.channel !== "shopify") {
-      throw new AppError({
-        statusCode: 400,
-        code: "unsupported_channel",
-        message: "Only Shopify channel is active right now.",
+    if (body.channel === "shopify") {
+      const queueDepth = await getShopifyQueueDepth();
+
+      /**
+       * Keep this high or remove it later if you want unlimited queued jobs.
+       * Worker concurrency still protects the system.
+       */
+      if (queueDepth.total >= 10000) {
+        throw new AppError({
+          statusCode: 503,
+          code: "queue_full",
+          message: "Shopify queue is temporarily full. Please retry later.",
+          details: {
+            channel: "shopify",
+            retryAfterSeconds: 60,
+          },
+        });
+      }
+
+      const queuePosition = await getNextShopifyQueuePosition();
+
+      const dbJob = await createShopifyJobRecord({
+        userId: user.id,
+        query: body.query,
+        filters: body.filters,
+        queuePosition,
       });
-    }
 
-    const queueDepth = await getShopifyQueueDepth();
+      await addShopifyJob({
+        jobId: dbJob.id,
+        userId: user.id,
+        channel: "shopify",
+        query: body.query,
+        filters: body.filters,
+      });
 
-    if (queueDepth.total >= 50) {
-      throw new AppError({
-        statusCode: 503,
-        code: "queue_full",
-        message: "Shopify queue is full. Please retry later.",
-        details: {
-          channel: "shopify",
-          retryAfterSeconds: 60,
+      return reply.code(202).send({
+        success: true,
+        data: {
+          jobId: dbJob.id,
+          status: dbJob.status,
+          queuePosition,
         },
       });
     }
 
-    const queuePosition = await getNextShopifyQueuePosition();
+    if (body.channel === "ebay") {
+      const queueDepth = await getEbayQueueDepth();
 
-    /**
-     * Create permanent DB record first.
-     */
-    const dbJob = await createShopifyJobRecord({
-      userId: user.id,
-      query: body.query,
-      filters: body.filters,
-      queuePosition,
-    });
+      if (queueDepth.total >= 10000) {
+        throw new AppError({
+          statusCode: 503,
+          code: "queue_full",
+          message: "eBay queue is temporarily full. Please retry later.",
+          details: {
+            channel: "ebay",
+            retryAfterSeconds: 60,
+          },
+        });
+      }
 
-    /**
-     * Push job to Redis queue.
-     */
-    await addShopifyJob({
-      jobId: dbJob.id,
-      userId: user.id,
-      channel: "shopify",
-      query: body.query,
-      filters: body.filters,
-    });
+      const queuePosition = await getNextEbayQueuePosition();
 
-    return reply.code(202).send({
-      success: true,
-      data: {
-        jobId: dbJob.id,
-        status: dbJob.status,
+      const dbJob = await createEbayJobRecord({
+        userId: user.id,
+        query: body.query,
+        filters: body.filters,
         queuePosition,
-      },
+      });
+
+      await addEbayJob({
+        jobId: dbJob.id,
+        userId: user.id,
+        channel: "ebay",
+        query: body.query,
+        filters: body.filters,
+      });
+
+      return reply.code(202).send({
+        success: true,
+        data: {
+          jobId: dbJob.id,
+          status: dbJob.status,
+          queuePosition,
+        },
+      });
+    }
+
+    throw new AppError({
+      statusCode: 400,
+      code: "unsupported_channel",
+      message: "Unsupported channel",
     });
   });
 
