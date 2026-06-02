@@ -75,3 +75,37 @@ export const resetPasswordSchema = z.object({
 });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+/**
+ * Create API token request.
+ * Used for Google Sheets / Apps Script integration.
+ *
+ * The raw API token will be shown only once after creation.
+ */
+export const createApiTokenSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Token name must be at least 2 characters")
+    .max(100, "Token name must be less than 100 characters")
+    .default("Google Sheets Token"),
+
+  expiresAt: z
+    .string()
+    .datetime("expiresAt must be a valid ISO datetime")
+    .optional()
+    .nullable(),
+
+  scopes: z
+    .array(
+      z.enum([
+        "jobs:create",
+        "jobs:read",
+        "results:read",
+      ])
+    )
+    .optional()
+    .default(["jobs:create", "jobs:read", "results:read"]),
+});
+
+export type CreateApiTokenInput = z.infer<typeof createApiTokenSchema>;

@@ -6,9 +6,11 @@ import {
     loginSchema,
     forgotPasswordSchema,
     resetPasswordSchema,
+    createApiTokenSchema,
 } from "./auth.schemas.js";
 import { requireAuth } from "./auth.middleware.js";
 import { AppError } from "../errors/app-error.js";
+import { createApiTokenForUser } from "./api-token.service.js";
 
 function getAuthenticatedUserId(request: FastifyRequest) {
     if (!request.user?.id) {
@@ -70,6 +72,34 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.send({
             success: true,
             data: result,
+        });
+    });
+
+    app.post("/api-tokens", { preHandler: requireAuth }, async (request, reply) => {
+        if (!request.user?.id) {
+            throw new AppError({
+                statusCode: 401,
+                code: "unauthorized",
+                message: "Authentication required",
+            });
+        }
+
+        const body = createApiTokenSchema.parse(request.body ?? {});
+
+        const created = await createApiTokenForUser({
+            userId: request.user.id,
+            name: body.name,
+            scopes: body.scopes,
+            expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+        });
+
+        return reply.code(201).send({
+            success: true,
+            data: {
+                token: created.rawToken,
+                apiToken: created.apiToken,
+                warning: "Copy this token now. It will not be shown again.",
+            },
         });
     });
 
