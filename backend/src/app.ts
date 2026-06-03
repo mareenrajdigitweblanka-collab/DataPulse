@@ -25,9 +25,6 @@ export async function buildApp() {
     prefix: "/api/v1/auth",
   });
 
-  /**
-   * Shopify-only job API for now.
-   */
   await app.register(jobsRoutes, {
     prefix: "/api/v1/jobs",
   });

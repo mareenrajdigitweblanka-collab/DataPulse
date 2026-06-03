@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 import { AppError } from "../errors/app-error.js";
 
@@ -11,7 +11,7 @@ export function registerErrorHandler(app: FastifyInstance) {
         error: {
           code: "validation_error",
           message: "Invalid request data",
-          details: error.flatten(),
+          details: z.flattenError(error),
         },
       });
     }

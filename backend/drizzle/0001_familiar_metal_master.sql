@@ -1,0 +1,1 @@
+DROP INDEX "password_reset_tokens_token_hash_idx";

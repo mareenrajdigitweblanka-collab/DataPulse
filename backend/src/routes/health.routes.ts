@@ -9,6 +9,7 @@ export async function healthRoutes(app: FastifyInstance) {
       data: {
         status: "ok",
         service: "datapulse-backend",
+        message: "Backend is healthy and running smoothly.",
       },
     };
   });
@@ -21,6 +22,7 @@ export async function healthRoutes(app: FastifyInstance) {
       data: {
         connected: true,
         usersCount: allUsers.length,
+        message: "Database connection successful and users retrieved.",
       },
     };
   });

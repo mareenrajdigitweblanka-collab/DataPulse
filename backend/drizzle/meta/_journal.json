@@ -8,6 +8,13 @@
       "when": 1780390994793,
       "tag": "0000_plain_puck",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780466315604,
+      "tag": "0001_familiar_metal_master",
+      "breakpoints": true
     }
   ]
 }

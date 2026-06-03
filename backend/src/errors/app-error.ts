@@ -14,7 +14,7 @@ export class AppError extends Error {
     details?: unknown;
   }) {
     super(params.message);
-
+    Object.setPrototypeOf(this, AppError.prototype);
     this.statusCode = params.statusCode;
     this.code = params.code;
     this.details = params.details;

@@ -3,15 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-/**
- * This file lives at:
- * backend/src/env.ts
- *
- * Project root .env lives at:
- * datapulse/.env
- *
- * So we resolve ../../.env from this file.
- */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -29,19 +20,19 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
 
   /**
-   * eBay vars are optional so Shopify/backend can still run
+   * eBay vars are optional so backend and other platform services can still run
    * even before eBay credentials are added.
    */
   EBAY_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
   EBAY_CLIENT_ID: z.string().min(1).optional(),
   EBAY_CLIENT_SECRET: z.string().min(1).optional(),
-  EBAY_MARKETPLACE_ID: z.string().min(1).default("EBAY_US"),
+  EBAY_MARKETPLACE_ID: z.string().min(1).default("EBAY_GB"),
   EBAY_SEARCH_LIMIT: z.coerce.number().int().min(1).max(200).default(50),
 
 
   /**
   * Google Shopping via SerpApi.
-  * Optional here so Shopify backend can still run without SerpApi key.
+  * Optional here so backend and other platform services can still run without SerpApi key.
   * Google worker validates it when used.
   */
   SERPAPI_API_KEY: z.string().min(1).optional(),
@@ -74,7 +65,7 @@ const envSchema = z.object({
    * Amazon scraping config.
    * Keep concurrency low because Amazon blocks aggressively.
    */
-  AMAZON_BASE_URL: z.string().url().default("https://www.amazon.com"),
+  AMAZON_BASE_URL: z.string().url().default("https://www.amazon.co.uk"),
 
   AMAZON_RESULT_LIMIT: z.coerce
     .number()
@@ -108,7 +99,6 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error("Invalid environment variables");
-  console.error(parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
 
