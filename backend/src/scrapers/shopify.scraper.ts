@@ -160,7 +160,7 @@ function mapShopifyProduct(input: {
   return {
     title: input.product.title?.trim() || handle,
     price: parsePrice(firstVariant?.price),
-    currency: "USD",
+    currency: "GBP", // Shopify API does not return currency in /products.json, assume GBP for now.
     vendor: input.product.vendor?.trim() || null,
     productType: input.product.product_type?.trim() || null,
 
