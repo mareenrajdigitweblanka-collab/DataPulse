@@ -43,6 +43,8 @@ import {
   getNextAmazonQueuePosition,
 } from "../queue/amazon.queue.js";
 
+const MAX_QUEUE_DEPTH = 1000;
+
 function getAuthenticatedUser(request: FastifyRequest) {
   if (!request.user?.id) {
     throw new AppError({
@@ -96,7 +98,7 @@ export async function jobsRoutes(app: FastifyInstance) {
     if (body.channel === "shopify") {
       const queueDepth = await getShopifyQueueDepth();
 
-      if (queueDepth.total >= 10000) {
+      if (queueDepth.total >= MAX_QUEUE_DEPTH) {
         throw new AppError({
           statusCode: 503,
           code: "queue_full",
@@ -138,7 +140,7 @@ export async function jobsRoutes(app: FastifyInstance) {
     if (body.channel === "ebay") {
       const queueDepth = await getEbayQueueDepth();
 
-      if (queueDepth.total >= 10000) {
+      if (queueDepth.total >= MAX_QUEUE_DEPTH) {
         throw new AppError({
           statusCode: 503,
           code: "queue_full",
@@ -180,7 +182,7 @@ export async function jobsRoutes(app: FastifyInstance) {
     if (body.channel === "google") {
       const queueDepth = await getGoogleQueueDepth();
 
-      if (queueDepth.total >= 10000) {
+      if (queueDepth.total >= MAX_QUEUE_DEPTH) {
         throw new AppError({
           statusCode: 503,
           code: "queue_full",
@@ -222,7 +224,7 @@ export async function jobsRoutes(app: FastifyInstance) {
     if (body.channel === "amazon") {
       const queueDepth = await getAmazonQueueDepth();
 
-      if (queueDepth.total >= 10000) {
+      if (queueDepth.total >= MAX_QUEUE_DEPTH) {
         throw new AppError({
           statusCode: 503,
           code: "queue_full",

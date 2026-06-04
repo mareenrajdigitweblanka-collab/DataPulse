@@ -3,6 +3,10 @@ import { z } from "zod";
 export const channelSchema = z.enum(["shopify", "ebay", "google", "amazon"]);
 
 export const shopifyFiltersSchema = z.object({
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+  inStockOnly: z.coerce.boolean().optional().default(false),
+
   storeUrl: z
     .string()
     .trim()
@@ -10,11 +14,6 @@ export const shopifyFiltersSchema = z.object({
     .refine((url) => url.startsWith("https://"), {
       message: "storeUrl must use HTTPS",
     }),
-
-  minPrice: z.coerce.number().min(0).optional(),
-  maxPrice: z.coerce.number().min(0).optional(),
-  inStockOnly: z.coerce.boolean().optional().default(false),
-
   vendor: z.string().trim().optional().default(""),
   productType: z.string().trim().optional().default(""),
 });
@@ -22,12 +21,12 @@ export const shopifyFiltersSchema = z.object({
 export const ebayFiltersSchema = z.object({
   minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().min(0).optional(),
+  inStockOnly: z.coerce.boolean().optional().default(false),
 
   condition: z
     .enum(["any", "new", "used", "refurbished"])
     .optional()
     .default("any"),
-
   freeShippingOnly: z.coerce.boolean().optional().default(false),
   buyItNowOnly: z.coerce.boolean().optional().default(false),
 });
@@ -35,6 +34,11 @@ export const ebayFiltersSchema = z.object({
 export const googleFiltersSchema = z.object({
   minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().min(0).optional(),
+  /**
+   * Google result availability is not always consistent.
+   * We keep this but apply only when mapped isInStock is false.
+   */
+  inStockOnly: z.coerce.boolean().optional().default(false),
 
   /**
    * Google country parameter maps to SerpApi gl.
@@ -43,7 +47,7 @@ export const googleFiltersSchema = z.object({
   country: z
     .enum(["us", "uk", "ca", "au", "de"])
     .optional()
-    .default("us"),
+    .default("uk"),
 
   /**
    * Search result language maps to SerpApi hl.
@@ -64,12 +68,6 @@ export const googleFiltersSchema = z.object({
    * Example: Amazon, eBay, Walmart, Best Buy.
    */
   storeName: z.string().trim().optional().default(""),
-
-  /**
-   * Google result availability is not always consistent.
-   * We keep this but apply only when mapped isInStock is false.
-   */
-  inStockOnly: z.coerce.boolean().optional().default(false),
 });
 
 export const amazonFiltersSchema = z.object({
@@ -118,7 +116,7 @@ export const createJobSchema = z.discriminatedUnion("channel", [
     filters: googleFiltersSchema,
   }),
 
-    z.object({
+  z.object({
     channel: z.literal("amazon"),
     query: z
       .string()
