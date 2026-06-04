@@ -15,6 +15,13 @@
       "when": 1780466315604,
       "tag": "0001_familiar_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780556980792,
+      "tag": "0002_rapid_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

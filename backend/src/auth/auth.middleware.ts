@@ -3,7 +3,6 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { env } from "../env.js";
 import { AppError } from "../errors/app-error.js";
-import { verifyApiToken } from "./api-token.service.js";
 
 type JwtPayload = {
   sub: string;
@@ -13,8 +12,6 @@ type JwtPayload = {
 /**
  * Protect routes using:
  * Authorization: Bearer <JWT>
- * OR
- * Authorization: Bearer dp_live_xxxxxxxxx
  */
 export async function requireAuth(
   request: FastifyRequest,
@@ -32,33 +29,6 @@ export async function requireAuth(
 
   const token = authHeader.replace("Bearer ", "").trim();
 
-  /**
-   * Google Sheets / Apps Script API token mode.
-   */
-  if (token.startsWith("dp_live_")) {
-    const verified = await verifyApiToken(token);
-
-    if (!verified) {
-      throw new AppError({
-        statusCode: 401,
-        code: "invalid_api_token",
-        message: "API token is invalid, expired, or revoked",
-      });
-    }
-
-    request.user = {
-      id: verified.user.id,
-      email: verified.user.email,
-      authType: "api_token",
-      apiTokenId: verified.token.id,
-    };
-
-    return;
-  }
-
-  /**
-   * Existing JWT mode.
-   */
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
 

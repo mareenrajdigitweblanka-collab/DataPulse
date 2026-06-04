@@ -8,7 +8,7 @@ import {
   index,
   pgEnum,
   boolean,
-uniqueIndex,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const channelEnum = pgEnum("channel_type", ["amazon", "ebay", "google", "shopify"]);
@@ -117,47 +117,6 @@ export const results = pgTable(
   ]
 );
 
-export const apiTokens = pgTable(
-  "api_tokens",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-
-    name: text("name").notNull(),
-
-    /**
-     * Example visible prefix:
-     * dp_live_abcd1234
-     * Only prefix is stored for display/debug.
-     */
-    tokenPrefix: text("token_prefix").notNull(),
-
-    /**
-     * Store only SHA-256 hash of the full token.
-     * Never store raw API token.
-     */
-    tokenHash: text("token_hash").notNull().unique(),
-
-    scopes: jsonb("scopes").notNull().default(["jobs:create", "jobs:read", "results:read"]),
-
-    isActive: boolean("is_active").notNull().default(true),
-
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-    expiresAt: timestamp("expires_at", { withTimezone: true }),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [
-    index("api_tokens_user_id_idx").on(table.userId),
-    uniqueIndex("api_tokens_token_hash_idx").on(table.tokenHash),
-  ]
-);
-
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
@@ -166,6 +125,3 @@ export type NewJob = typeof jobs.$inferInsert;
 
 export type Result = typeof results.$inferSelect;
 export type NewResult = typeof results.$inferInsert;
-
-export type ApiToken = typeof apiTokens.$inferSelect;
-export type NewApiToken = typeof apiTokens.$inferInsert;
