@@ -55,20 +55,6 @@ const worker = new Worker<ShopifyJobData>(
     await updateJobRunning(data.jobId);
     await job.updateProgress(10);
 
-    /**
-     * Scrape /products.json.
-     */
-    // const rawProducts = await withTimeout(
-    //   scrapeShopifyProducts({
-    //     storeUrl: data.filters.storeUrl,
-    //     query: data.query,
-    //     filters: data.filters,
-    //     maxPages: 2,
-    //   }),
-    //   5 * 60 * 1000,
-    //   "Shopify job timed out after 5 minutes"
-    // );
-
     let rawProducts;
 
     try {
@@ -77,27 +63,19 @@ const worker = new Worker<ShopifyJobData>(
           storeUrl: data.filters.storeUrl,
           query: data.query,
           filters: data.filters,
-          /**
-     * No page limit.
-     * Scrape the whole Shopify store until products.json has no more pages.
-     */
           maxPages: null,
         }),
         15 * 60 * 1000,
         "Shopify job timed out after 15 minutes"
       );
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown Shopify scrape error";
+      const message = getErrorMessage(error);
 
       /**
-       * These errors are store configuration/access problems.
+       * These errors are permanent store/configuration/access problems.
        * Retrying will not fix them.
        */
-      if (
-        message.includes("blocks public /products.json") ||
-        message.includes("does not expose /products.json")
-      ) {
+      if (isPermanentShopifyError(message)) {
         throw new UnrecoverableError(message);
       }
 
@@ -158,29 +136,84 @@ const worker = new Worker<ShopifyJobData>(
   }
 );
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  return "Unknown Shopify worker error";
+}
+
+function getErrorStack(error: unknown) {
+  if (error instanceof Error && typeof error.stack === "string") {
+    return error.stack;
+  }
+
+  return null;
+}
+
+function getErrorName(error: unknown) {
+  if (error instanceof Error && typeof error.name === "string") {
+    return error.name;
+  }
+
+  return "UnknownError";
+}
+
+function isTimeoutError(message: string) {
+  return message.toLowerCase().includes("timed out");
+}
+
+function isPermanentShopifyError(message: string) {
+  const lowerMessage = message.toLowerCase();
+
+  return (
+    lowerMessage.includes("blocks public /products.json") ||
+    lowerMessage.includes("does not expose /products.json") ||
+    lowerMessage.includes("invalid shopify store url") ||
+    lowerMessage.includes("invalid url") ||
+    lowerMessage.includes("private ip") ||
+    lowerMessage.includes("private network") ||
+    lowerMessage.includes("unsupported store format")
+  );
+}
+
 worker.on("failed", async (job, error) => {
   if (!job) return;
 
   const attemptsAllowed = job.opts.attempts ?? 1;
   const attemptsMade = job.attemptsMade;
 
+  const message = getErrorMessage(error);
+  const errorName = getErrorName(error);
+  const errorStack = getErrorStack(error);
+
+  const isUnrecoverable = error instanceof UnrecoverableError;
+  const isFinalAttempt = attemptsMade >= attemptsAllowed;
+  const isTimeout = isTimeoutError(message);
+
   console.error({
     event: "shopify_job_failed",
     jobId: job.data.jobId,
     attemptsMade,
     attemptsAllowed,
-    error: error.message,
+    isUnrecoverable,
+    isFinalAttempt,
+    errorName,
+    error: message,
+    stack: errorStack,
   });
 
   /**
-   * Only mark DB as error after final retry.
+   * Mark DB as failed when:
+   * 1. Error is unrecoverable, so BullMQ will not retry
+   * OR
+   * 2. This is the final retry attempt
    */
-  if (attemptsMade >= attemptsAllowed) {
-    const isTimeout = error.message.toLowerCase().includes("timed out");
-
+  if (isUnrecoverable || isFinalAttempt) {
     await failJob({
       jobId: job.data.jobId,
-      message: error.message,
+      message,
       status: isTimeout ? "timeout" : "error",
     });
   }
@@ -196,7 +229,9 @@ worker.on("completed", (job) => {
 worker.on("error", (error) => {
   console.error({
     event: "shopify_worker_error",
-    error: error.message,
+    errorName: getErrorName(error),
+    error: getErrorMessage(error),
+    stack: getErrorStack(error),
   });
 });
 
