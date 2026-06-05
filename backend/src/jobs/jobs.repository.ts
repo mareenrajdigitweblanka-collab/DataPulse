@@ -8,7 +8,6 @@ export async function createShopifyJobRecord(input: {
   userId: string;
   query: string;
   filters: ShopifyFilters;
-  queuePosition: number;
 }) {
   const [job] = await db
     .insert(jobs)
@@ -18,7 +17,6 @@ export async function createShopifyJobRecord(input: {
       query: input.query,
       filters: input.filters,
       status: "queued",
-      queuePosition: input.queuePosition,
       progressPercent: 0,
     })
     .returning();
@@ -56,7 +54,6 @@ export async function updateJobRunning(jobId: string) {
     .update(jobs)
     .set({
       status: "running",
-      queuePosition: null,
       progressPercent: 10,
       startedAt: new Date(),
       updatedAt: new Date(),
@@ -157,7 +154,6 @@ export async function createEbayJobRecord(input: {
   userId: string;
   query: string;
   filters: EbayFilters;
-  queuePosition: number;
 }) {
   const [job] = await db
     .insert(jobs)
@@ -167,7 +163,6 @@ export async function createEbayJobRecord(input: {
       query: input.query,
       filters: input.filters,
       status: "queued",
-      queuePosition: input.queuePosition,
       progressPercent: 0,
     })
     .returning();
@@ -219,7 +214,6 @@ export async function createGoogleJobRecord(input: {
   userId: string;
   query: string;
   filters: GoogleFilters;
-  queuePosition: number;
 }) {
   const [job] = await db
     .insert(jobs)
@@ -229,7 +223,6 @@ export async function createGoogleJobRecord(input: {
       query: input.query,
       filters: input.filters,
       status: "queued",
-      queuePosition: input.queuePosition,
       progressPercent: 0,
     })
     .returning();
@@ -281,7 +274,6 @@ export async function createAmazonJobRecord(input: {
   userId: string;
   query: string;
   filters: AmazonFilters;
-  queuePosition: number;
 }) {
   const [job] = await db
     .insert(jobs)
@@ -291,7 +283,6 @@ export async function createAmazonJobRecord(input: {
       query: input.query,
       filters: input.filters,
       status: "queued",
-      queuePosition: input.queuePosition,
       progressPercent: 0,
     })
     .returning();

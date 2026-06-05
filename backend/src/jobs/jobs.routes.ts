@@ -110,14 +110,13 @@ export async function jobsRoutes(app: FastifyInstance) {
         });
       }
 
-      const queuePosition = await getNextShopifyQueuePosition();
-
       const dbJob = await createShopifyJobRecord({
         userId: user.id,
         query: body.query,
         filters: body.filters,
-        queuePosition,
       });
+
+      const queuePosition = await getNextShopifyQueuePosition();
 
       await addShopifyJob({
         jobId: dbJob.id,
@@ -152,14 +151,13 @@ export async function jobsRoutes(app: FastifyInstance) {
         });
       }
 
-      const queuePosition = await getNextEbayQueuePosition();
-
       const dbJob = await createEbayJobRecord({
         userId: user.id,
         query: body.query,
         filters: body.filters,
-        queuePosition,
       });
+
+      const queuePosition = await getNextEbayQueuePosition();
 
       await addEbayJob({
         jobId: dbJob.id,
@@ -194,14 +192,13 @@ export async function jobsRoutes(app: FastifyInstance) {
         });
       }
 
-      const queuePosition = await getNextGoogleQueuePosition();
-
       const dbJob = await createGoogleJobRecord({
         userId: user.id,
         query: body.query,
         filters: body.filters,
-        queuePosition,
       });
+
+      const queuePosition = await getNextGoogleQueuePosition();
 
       await addGoogleJob({
         jobId: dbJob.id,
@@ -236,14 +233,13 @@ export async function jobsRoutes(app: FastifyInstance) {
         });
       }
 
-      const queuePosition = await getNextAmazonQueuePosition();
-
       const dbJob = await createAmazonJobRecord({
         userId: user.id,
         query: body.query,
         filters: body.filters,
-        queuePosition,
       });
+
+      const queuePosition = await getNextAmazonQueuePosition();
 
       await addAmazonJob({
         jobId: dbJob.id,
@@ -282,8 +278,9 @@ export async function jobsRoutes(app: FastifyInstance) {
       limit?: string;
     };
 
-    const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);
+    // For pagination safety.
+    const page = Math.max(Number(query.page ?? 1), 1);  // Default to page 1, minimum 1
+    const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);  // Default to 20, minimum 1, maximum 100
 
     const userJobs = await getUserJobs({
       userId: user.id,
@@ -303,7 +300,7 @@ export async function jobsRoutes(app: FastifyInstance) {
 
   /**
    * GET /api/v1/jobs/:id
-   * Returns current status for polling from Postman/Apps Script.
+   * Current user job by job_id
    */
   app.get("/:id", { preHandler: requireAuth }, async (request, reply) => {
     const user = getAuthenticatedUser(request);
@@ -331,9 +328,9 @@ export async function jobsRoutes(app: FastifyInstance) {
   });
 
   /**
-   * GET /api/v1/jobs/:id/results
-   * Returns filtered Shopify results.
-   */
+ * GET /api/v1/jobs/:id/results
+ * Returns paginated results for a finished scraping job.
+ */
   app.get("/:id/results", { preHandler: requireAuth }, async (request, reply) => {
     const user = getAuthenticatedUser(request);
     const params = jobIdParamsSchema.parse(request.params);
@@ -373,15 +370,20 @@ export async function jobsRoutes(app: FastifyInstance) {
 
     /**
      * JSONB price sort is easier in application code for MVP.
-     * Shopify result count is small, so this is acceptable now.
      */
     if (query.sortBy === "price_asc" || query.sortBy === "price_desc") {
-      sortedRows.sort((a, b) => {
-        const aData = a.data as { price?: number | null };
-        const bData = b.data as { price?: number | null };
+      const getPrice = (row: typeof rows[number]) => {
+        const data = row.data as { price?: number | null };
+        return typeof data.price === "number" ? data.price : null;
+      };
 
-        const aPrice = aData.price ?? Number.POSITIVE_INFINITY;
-        const bPrice = bData.price ?? Number.POSITIVE_INFINITY;
+      sortedRows.sort((a, b) => {
+        const aPrice = getPrice(a);
+        const bPrice = getPrice(b);
+
+        if (aPrice === null && bPrice === null) return 0;
+        if (aPrice === null) return 1;
+        if (bPrice === null) return -1;
 
         return query.sortBy === "price_asc"
           ? aPrice - bPrice

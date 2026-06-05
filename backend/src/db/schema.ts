@@ -65,7 +65,6 @@ export const jobs = pgTable(
     filters: jsonb("filters").notNull().default({}),
 
     status: statusEnum("status").notNull().default("queued"),
-    queuePosition: integer("queue_position"),
     progressPercent: integer("progress_percent").notNull().default(0),
 
     totalScraped: integer("total_scraped"),
