@@ -63,7 +63,7 @@ const worker = new Worker<ShopifyJobData>(
           storeUrl: data.filters.storeUrl,
           query: data.query,
           filters: data.filters,
-          maxPages: null,
+          maxPages: null,       // Scrape all pages.
         }),
         15 * 60 * 1000,
         "Shopify job timed out after 15 minutes"
