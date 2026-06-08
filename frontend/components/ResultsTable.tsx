@@ -39,17 +39,31 @@ export function ResultsTable({
   loading: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="card p-6">
       <div>
-        <h2 className="text-lg font-bold text-slate-900">Results</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2
+          className="text-lg font-bold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Results
+        </h2>
+        <p
+          className="mt-1 text-sm"
+          style={{ color: "var(--text-secondary)" }}
+        >
           Generic table for Shopify, eBay, Google Shopping, and Amazon results.
         </p>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+      <div
+        className="mt-5 overflow-x-auto rounded-xl border"
+        style={{ borderColor: "var(--border-primary)" }}
+      >
         {loading ? (
-          <div className="p-6 text-center text-sm text-slate-500">
+          <div
+            className="p-6 text-center text-sm"
+            style={{ color: "var(--text-secondary)" }}
+          >
             Loading results...
           </div>
         ) : results.length === 0 ? (
@@ -57,38 +71,68 @@ export function ResultsTable({
             <EmptyBox message="No results loaded yet." />
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
+          <table
+            className="min-w-full divide-y text-sm"
+            style={{ borderColor: "var(--border-primary)" }}
+          >
+            <thead style={{ background: "var(--bg-tertiary)" }}>
               <tr>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">
+                <th
+                  className="px-4 py-3 text-left font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   #
                 </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">
+                <th
+                  className="px-4 py-3 text-left font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Image
                 </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">
+                <th
+                  className="px-4 py-3 text-left font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Title
                 </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">
+                <th
+                  className="px-4 py-3 text-left font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Price
                 </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">
+                <th
+                  className="px-4 py-3 text-left font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Source
                 </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">
+                <th
+                  className="px-4 py-3 text-left font-bold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   URL
                 </th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-200 bg-white">
+            <tbody
+              className="divide-y"
+              style={{
+                borderColor: "var(--border-primary)",
+                background: "var(--bg-secondary)",
+              }}
+            >
               {results.map((row) => {
                 const imageUrl = readImage(row.data);
                 const url = readUrl(row.data);
 
                 return (
                   <tr key={row.id}>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td
+                      className="px-4 py-3"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {row.position}
                     </td>
 
@@ -101,11 +145,17 @@ export function ResultsTable({
                           className="h-12 w-12 rounded-lg object-cover"
                         />
                       ) : (
-                        <div className="h-12 w-12 rounded-lg bg-slate-100" />
+                        <div
+                          className="h-12 w-12 rounded-lg"
+                          style={{ background: "var(--bg-tertiary)" }}
+                        />
                       )}
                     </td>
 
-                    <td className="max-w-md px-4 py-3 font-medium text-slate-800">
+                    <td
+                      className="max-w-md px-4 py-3 font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {readValue(row.data, [
                         "title",
                         "name",
@@ -114,7 +164,10 @@ export function ResultsTable({
                       ])}
                     </td>
 
-                    <td className="px-4 py-3 text-slate-700">
+                    <td
+                      className="px-4 py-3"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {readValue(row.data, [
                         "price",
                         "priceText",
@@ -124,7 +177,10 @@ export function ResultsTable({
                       ])}
                     </td>
 
-                    <td className="px-4 py-3 text-slate-700">
+                    <td
+                      className="px-4 py-3"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {readValue(row.data, [
                         "source",
                         "store",
@@ -140,7 +196,8 @@ export function ResultsTable({
                           href={url}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-semibold text-blue-700 hover:underline"
+                          className="font-semibold hover:underline"
+                          style={{ color: "var(--accent-primary)" }}
                         >
                           Open
                         </a>

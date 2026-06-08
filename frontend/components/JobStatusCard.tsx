@@ -13,27 +13,44 @@ export function JobStatusCard({
   onLoadResults: () => void;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="card p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Active Job</h2>
-          <p className="mt-1 break-all text-sm text-slate-500">{job.id}</p>
+          <h2
+            className="text-lg font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Active Job
+          </h2>
+          <p
+            className="mt-1 break-all text-sm"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {job.id}
+          </p>
         </div>
 
         <StatusBadge status={job.status} />
       </div>
 
       <div className="mt-5">
-        <div className="mb-2 flex justify-between text-sm text-slate-600">
+        <div
+          className="mb-2 flex justify-between text-sm"
+          style={{ color: "var(--text-secondary)" }}
+        >
           <span>Progress</span>
           <span>{job.progressPercent}%</span>
         </div>
 
-        <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className="h-3 overflow-hidden rounded-full"
+          style={{ background: "var(--bg-tertiary)" }}
+        >
           <div
-            className="h-full rounded-full bg-blue-700 transition-all"
+            className="h-full rounded-full transition-all"
             style={{
               width: `${Math.min(Math.max(job.progressPercent, 0), 100)}%`,
+              background: "var(--gradient-brand)",
             }}
           />
         </div>
@@ -47,7 +64,15 @@ export function JobStatusCard({
       </div>
 
       {job.errorMessage && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          className="mt-4 rounded-xl px-4 py-3 text-sm font-medium"
+          style={{
+            background: "var(--error-soft)",
+            color: "var(--error)",
+            border: "1px solid",
+            borderColor: "color-mix(in srgb, var(--error) 20%, transparent)",
+          }}
+        >
           {job.errorMessage}
         </div>
       )}
@@ -57,9 +82,19 @@ export function JobStatusCard({
           type="button"
           onClick={onLoadResults}
           disabled={loadingResults}
-          className="mt-5 rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800"
+          className="mt-5 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+          style={{
+            background: "var(--gradient-brand)",
+          }}
         >
-          {loadingResults ? "Loading results..." : "Load Results"}
+          {loadingResults ? (
+            <>
+              <span className="spinner" style={{ borderTopColor: "white", borderColor: "rgba(255,255,255,0.3)" }} />
+              Loading results...
+            </>
+          ) : (
+            "Load Results"
+          )}
         </button>
       )}
     </section>

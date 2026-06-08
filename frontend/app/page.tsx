@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AuthPanel } from "@/components/AuthPanel";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { CreateJobForm } from "@/components/CreateJobForm";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { RecentJobs } from "@/components/RecentJobs";
@@ -12,91 +14,44 @@ import type {
   Job,
   JobStatus,
   ResultRow,
-  User,
 } from "@/lib/types";
 
-const TOKEN_KEY = "datapulse_token";
-
 const FINISHED_STATUSES: JobStatus[] = ["done", "error", "timeout"];
-
-function getStoredToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-function saveToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-function removeToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Something went wrong";
 }
 
-export default function Home() {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+export default function DashboardPage() {
+  const router = useRouter();
+  const { user, token, isLoading, isAuthenticated, logout } = useAuth();
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [results, setResults] = useState<ResultRow[]>([]);
 
-  const [bootLoading, setBootLoading] = useState(false);
   const [jobLoading, setJobLoading] = useState(false);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const isLoggedIn = Boolean(token && user);
-
- useEffect(() => {
-  const savedToken = getStoredToken();
-
-  if (!savedToken) {
-    return;
-  }
-
-  const tokenFromStorage: string = savedToken;
-  let isMounted = true;
-
-  async function restoreSession() {
-    setBootLoading(true);
-
-    try {
-      const response = await api.me(tokenFromStorage);
-
-      if (!isMounted) return;
-
-      setToken(tokenFromStorage);
-      setUser(response.data.user);
-      await loadJobs(tokenFromStorage);
-    } catch {
-      removeToken();
-
-      if (!isMounted) return;
-
-      setToken(null);
-      setUser(null);
-    } finally {
-      if (isMounted) {
-        setBootLoading(false);
-      }
+  /* Redirect to login if not authenticated */
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/login");
     }
-  }
+  }, [isLoading, isAuthenticated, router]);
 
-  restoreSession();
+  /* Load jobs on mount */
+  useEffect(() => {
+    if (token) {
+      loadJobs(token).catch((err) => setError(getErrorMessage(err)));
+    }
+  }, [token]);
 
-  return () => {
-    isMounted = false;
-  };
-}, []);
-
+  /* Poll active job */
   useEffect(() => {
     if (!token || !activeJob) return;
-
     if (FINISHED_STATUSES.includes(activeJob.status)) return;
 
     const intervalId = window.setInterval(async () => {
@@ -113,8 +68,8 @@ export default function Home() {
             await loadResults(token, latestJob.id);
           }
         }
-      } catch (error) {
-        setError(getErrorMessage(error));
+      } catch (err) {
+        setError(getErrorMessage(err));
       }
     }, 5000);
 
@@ -123,7 +78,6 @@ export default function Home() {
 
   async function loadJobs(nextToken = token) {
     if (!nextToken) return;
-
     const response = await api.listJobs(nextToken);
     setJobs(response.data.jobs);
   }
@@ -135,29 +89,20 @@ export default function Home() {
     try {
       const response = await api.getResults(nextToken, jobId);
       setResults(response.data.results);
-    } catch (error) {
-      setError(getErrorMessage(error));
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setResultsLoading(false);
     }
   }
 
-  function handleAuthenticated(input: { user: User; token: string }) {
-    saveToken(input.token);
-    setToken(input.token);
-    setUser(input.user);
-    setError("");
-    loadJobs(input.token).catch((error) => setError(getErrorMessage(error)));
-  }
-
   function handleLogout() {
-    removeToken();
-    setToken(null);
-    setUser(null);
+    logout();
     setJobs([]);
     setActiveJob(null);
     setResults([]);
     setError("");
+    router.replace("/login");
   }
 
   async function handleCreateJob(payload: CreateJobPayload) {
@@ -176,8 +121,8 @@ export default function Home() {
 
       setActiveJob(jobResponse.data.job);
       await loadJobs(token);
-    } catch (error) {
-      setError(getErrorMessage(error));
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setJobLoading(false);
     }
@@ -198,98 +143,172 @@ export default function Home() {
       if (freshJob.status === "done") {
         await loadResults(token, freshJob.id);
       }
-    } catch (error) {
-      setError(getErrorMessage(error));
+    } catch (err) {
+      setError(getErrorMessage(err));
     }
   }
 
-  if (bootLoading) {
+  /* Loading state */
+  if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm font-semibold text-slate-600 shadow-sm">
-          Loading DataPulse...
+      <main
+        className="flex min-h-screen items-center justify-center"
+        style={{ background: "var(--bg-primary)" }}
+      >
+        <div
+          className="card flex items-center gap-3 px-6 py-5"
+        >
+          <span className="spinner" />
+          <span
+            className="text-sm font-semibold"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Loading DataPulse...
+          </span>
         </div>
       </main>
     );
   }
 
+  /* Not authenticated — will redirect */
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <main className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">DataPulse</h1>
-            <p className="text-sm text-slate-500">
-              Multi-Channel Web Scraping Platform
-            </p>
+    <main className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+      {/* ─── Header ─── */}
+      <header
+        className="border-b"
+        style={{
+          background: "var(--bg-secondary)",
+          borderColor: "var(--border-primary)",
+        }}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            {/* Logo */}
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{ background: "var(--gradient-brand)" }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <div>
+              <h1
+                className="text-lg font-bold"
+                style={{ color: "var(--text-primary)" }}
+              >
+                DataPulse
+              </h1>
+              <p
+                className="text-xs"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Multi-Channel Scraping
+              </p>
+            </div>
           </div>
 
-          {isLoggedIn && (
-            <div className="flex items-center gap-4">
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-semibold text-slate-800">
-                  {user?.name}
-                </p>
-                <p className="text-xs text-slate-500">{user?.email}</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            {/* User info */}
+            <div className="hidden text-right sm:block">
+              <p
+                className="text-sm font-semibold"
+                style={{ color: "var(--text-primary)" }}
               >
-                Logout
-              </button>
+                {user?.name}
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {user?.email}
+              </p>
             </div>
-          )}
+
+            {/* User avatar */}
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white"
+              style={{ background: "var(--gradient-brand)" }}
+            >
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
+
+            <button
+              id="dashboard-logout"
+              type="button"
+              onClick={handleLogout}
+              className="rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
+              style={{
+                borderColor: "var(--border-secondary)",
+                color: "var(--text-secondary)",
+                background: "var(--bg-secondary)",
+              }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
+      {/* ─── Content ─── */}
       <div className="mx-auto max-w-7xl px-6 py-8">
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            className="mb-6 rounded-xl px-4 py-3 text-sm animate-fade-in"
+            style={{
+              background: "var(--error-soft)",
+              color: "var(--error)",
+              border: "1px solid",
+              borderColor: "color-mix(in srgb, var(--error) 30%, transparent)",
+            }}
+          >
             {error}
           </div>
         )}
 
-        {!isLoggedIn ? (
-          <AuthPanel onAuthenticated={handleAuthenticated} onError={setError} />
-        ) : (
-          <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-            <CreateJobForm
-              loading={jobLoading}
-              onCreateJob={handleCreateJob}
-            />
+        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+          <CreateJobForm loading={jobLoading} onCreateJob={handleCreateJob} />
 
-            <section className="space-y-6">
-              {activeJob && (
-                <JobStatusCard
-                  job={activeJob}
-                  loadingResults={resultsLoading}
-                  onLoadResults={() => {
-                    if (token) {
-                      loadResults(token, activeJob.id);
-                    }
-                  }}
-                />
-              )}
-
-              <RecentJobs
-                jobs={jobs}
-                onRefresh={() => {
+          <section className="space-y-6">
+            {activeJob && (
+              <JobStatusCard
+                job={activeJob}
+                loadingResults={resultsLoading}
+                onLoadResults={() => {
                   if (token) {
-                    loadJobs(token).catch((error) =>
-                      setError(getErrorMessage(error))
-                    );
+                    loadResults(token, activeJob.id);
                   }
                 }}
-                onSelectJob={handleSelectJob}
               />
+            )}
 
-              <ResultsTable results={results} loading={resultsLoading} />
-            </section>
-          </div>
-        )}
+            <RecentJobs
+              jobs={jobs}
+              onRefresh={() => {
+                if (token) {
+                  loadJobs(token).catch((err) =>
+                    setError(getErrorMessage(err))
+                  );
+                }
+              }}
+              onSelectJob={handleSelectJob}
+            />
+
+            <ResultsTable results={results} loading={resultsLoading} />
+          </section>
+        </div>
       </div>
     </main>
   );

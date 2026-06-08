@@ -13,11 +13,19 @@ export function RecentJobs({
   onSelectJob: (job: Job) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="card p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Recent Jobs</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <h2
+            className="text-lg font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Recent Jobs
+          </h2>
+          <p
+            className="mt-1 text-sm"
+            style={{ color: "var(--text-secondary)" }}
+          >
             Select a previous job to reload status and results.
           </p>
         </div>
@@ -25,7 +33,12 @@ export function RecentJobs({
         <button
           type="button"
           onClick={onRefresh}
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="rounded-xl border px-4 py-2 text-sm font-semibold transition-all duration-200 hover:opacity-85"
+          style={{
+            borderColor: "var(--border-secondary)",
+            color: "var(--text-secondary)",
+            background: "var(--bg-secondary)",
+          }}
         >
           Refresh
         </button>
@@ -35,22 +48,37 @@ export function RecentJobs({
         {jobs.length === 0 ? (
           <EmptyBox message="No jobs yet." />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200">
-            <div className="divide-y divide-slate-200">
+          <div
+            className="overflow-hidden rounded-xl border"
+            style={{ borderColor: "var(--border-primary)" }}
+          >
+            <div
+              className="divide-y"
+              style={{ borderColor: "var(--border-primary)" }}
+            >
               {jobs.map((job) => (
                 <button
                   key={job.id}
                   type="button"
                   onClick={() => onSelectJob(job)}
-                  className="block w-full bg-white px-4 py-3 text-left hover:bg-slate-50"
+                  className="block w-full px-4 py-3 text-left transition-colors duration-200 hover:bg-[var(--bg-hover)]"
+                  style={{
+                    background: "var(--bg-secondary)",
+                  }}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-slate-800">
+                      <p
+                        className="font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         {job.channel.toUpperCase()} —{" "}
                         {job.query || "(empty query)"}
                       </p>
-                      <p className="mt-1 break-all text-xs text-slate-500">
+                      <p
+                        className="mt-1 break-all text-xs"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
                         {job.id}
                       </p>
                     </div>

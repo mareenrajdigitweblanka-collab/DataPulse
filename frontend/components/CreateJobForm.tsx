@@ -135,9 +135,17 @@ export function CreateJobForm({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-900">Create Scraping Job</h2>
-      <p className="mt-1 text-sm text-slate-500">
+    <section className="card p-6">
+      <h2
+        className="text-lg font-bold"
+        style={{ color: "var(--text-primary)" }}
+      >
+        Create Scraping Job
+      </h2>
+      <p
+        className="mt-1 text-sm"
+        style={{ color: "var(--text-secondary)" }}
+      >
         Submit a new scraping job to your Fastify backend.
       </p>
 
@@ -156,7 +164,15 @@ export function CreateJobForm({
           </select>
         </Field>
 
-        <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+        <div
+          className="rounded-xl px-4 py-3 text-sm font-medium"
+          style={{
+            background: "var(--accent-primary-soft)",
+            color: "var(--accent-primary)",
+            border: "1px solid",
+            borderColor: "color-mix(in srgb, var(--accent-primary) 20%, transparent)",
+          }}
+        >
           {helpText}
         </div>
 
@@ -360,9 +376,19 @@ export function CreateJobForm({
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800"
+          className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+          style={{
+            background: "var(--gradient-brand)",
+          }}
         >
-          {loading ? "Creating job..." : "Create Job"}
+          {loading ? (
+            <>
+              <span className="spinner" style={{ borderTopColor: "white", borderColor: "rgba(255,255,255,0.3)" }} />
+              Creating job...
+            </>
+          ) : (
+            "Create Job"
+          )}
         </button>
       </form>
     </section>

@@ -73,6 +73,8 @@ async function request<T>(
 }
 
 export const api = {
+  /* ─── Auth ─── */
+
   register(input: { name: string; email: string; password: string }) {
     return request<ApiSuccess<AuthData>>("/auth/register", {
       method: "POST",
@@ -93,6 +95,31 @@ export const api = {
       token,
     });
   },
+
+  forgotPassword(input: { email: string }) {
+    return request<
+      ApiSuccess<{ message: string; resetToken: string | null }>
+    >("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  resetPassword(input: { token: string; password: string }) {
+    return request<ApiSuccess<{ message: string }>>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  deleteAccount(token: string) {
+    return request<ApiSuccess<{ message: string }>>("/auth/account", {
+      method: "DELETE",
+      token,
+    });
+  },
+
+  /* ─── Jobs ─── */
 
   createJob(token: string, payload: CreateJobPayload) {
     return request<ApiSuccess<CreateJobData>>("/jobs", {

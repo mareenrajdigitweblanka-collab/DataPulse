@@ -11,11 +11,21 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-semibold text-slate-700">
+      <span
+        className="mb-1 block text-sm font-semibold"
+        style={{ color: "var(--text-secondary)" }}
+      >
         {label}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {hint && (
+        <span
+          className="mt-1 block text-xs"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          {hint}
+        </span>
+      )}
     </label>
   );
 }
@@ -30,33 +40,48 @@ export function CheckboxField({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+    <label
+      className="flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors"
+      style={{
+        borderColor: "var(--border-primary)",
+        background: "var(--bg-secondary)",
+      }}
+    >
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4"
+        className="h-4 w-4 accent-[var(--accent-primary)]"
       />
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <span
+        className="text-sm font-semibold"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        {label}
+      </span>
     </label>
   );
 }
 
+const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
+  done: { bg: "var(--success-soft)", color: "var(--success)" },
+  error: { bg: "var(--error-soft)", color: "var(--error)" },
+  timeout: { bg: "var(--error-soft)", color: "var(--error)" },
+  filtering: { bg: "rgba(168, 85, 247, 0.1)", color: "#a855f7" },
+  running: { bg: "var(--accent-primary-soft)", color: "var(--accent-primary)" },
+  queued: { bg: "var(--bg-tertiary)", color: "var(--text-secondary)" },
+};
+
 export function StatusBadge({ status }: { status: JobStatus }) {
-  const className =
-    status === "done"
-      ? "bg-green-100 text-green-700"
-      : status === "error" || status === "timeout"
-        ? "bg-red-100 text-red-700"
-        : status === "filtering"
-          ? "bg-purple-100 text-purple-700"
-          : status === "running"
-            ? "bg-blue-100 text-blue-700"
-            : "bg-slate-100 text-slate-700";
+  const style = STATUS_STYLES[status] || STATUS_STYLES.queued;
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${className}`}
+      className="rounded-full px-3 py-1 text-xs font-bold uppercase"
+      style={{
+        background: style.bg,
+        color: style.color,
+      }}
     >
       {status}
     </span>
@@ -71,16 +96,35 @@ export function Metric({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
+    <div
+      className="rounded-xl p-4"
+      style={{ background: "var(--bg-tertiary)" }}
+    >
+      <p
+        className="text-xs font-semibold uppercase"
+        style={{ color: "var(--text-tertiary)" }}
+      >
+        {label}
+      </p>
+      <p
+        className="mt-1 text-lg font-bold"
+        style={{ color: "var(--text-primary)" }}
+      >
+        {value}
+      </p>
     </div>
   );
 }
 
 export function EmptyBox({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+    <div
+      className="rounded-xl border border-dashed p-8 text-center text-sm"
+      style={{
+        borderColor: "var(--border-secondary)",
+        color: "var(--text-tertiary)",
+      }}
+    >
       {message}
     </div>
   );
