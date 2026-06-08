@@ -62,15 +62,43 @@ export default function ForgotPasswordPage() {
             className="text-2xl font-bold"
             style={{ color: "var(--text-primary)" }}
           >
-            Check your email
+            {devToken ? "Reset token generated" : "No reset token generated"}
           </h2>
-          <p
+
+          <div
             className="mt-2 text-sm"
             style={{ color: "var(--text-secondary)" }}
           >
-            If an account with <strong>{email}</strong> exists, we&apos;ve
-            sent a password reset link.
-          </p>
+            {devToken ? (
+              <>
+                <p>Reset token was generated for</p>
+
+                <p
+                  className="mt-1 break-all font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {email}
+                </p>
+
+                <p className="mt-1">Click the <b>Reset Password</b> button below to continue.</p>
+              </>
+            ) : (
+              <>
+                <p>No account was found for</p>
+
+                <p
+                  className="mt-1 break-all font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {email}
+                </p>
+
+                <p className="mt-1">
+                  Please check the email address and try again.
+                </p>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Dev-mode: show reset token for testing */}
@@ -84,7 +112,7 @@ export default function ForgotPasswordPage() {
             }}
           >
             <p className="mb-2 font-semibold" style={{ color: "var(--warning)" }}>
-              🛠 Dev Mode — Reset Token
+              Reset Token
             </p>
             <p
               className="mb-3 break-all font-mono text-xs"
@@ -97,7 +125,7 @@ export default function ForgotPasswordPage() {
               className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors"
               style={{ background: "var(--accent-primary)" }}
             >
-              Reset Password →
+              Reset Password
             </Link>
           </div>
         )}
@@ -128,7 +156,7 @@ export default function ForgotPasswordPage() {
           className="mt-1 text-sm"
           style={{ color: "var(--text-secondary)" }}
         >
-          Enter your email and we&apos;ll send a reset link
+          Enter your email and we&apos;ll send a reset token if an account exists.
         </p>
       </div>
 
@@ -181,7 +209,7 @@ export default function ForgotPasswordPage() {
               Sending...
             </>
           ) : (
-            "Send reset link"
+            "Send reset token"
           )}
         </button>
       </form>
