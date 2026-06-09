@@ -45,7 +45,6 @@ import {
 } from "../queue/amazon.queue.js";
 
 const MAX_QUEUE_DEPTH = 1000;
-const DELETABLE_JOB_STATUSES = ["done", "error", "timeout"] as const;
 
 function getAuthenticatedUser(request: FastifyRequest) {
   if (!request.user?.id) {
