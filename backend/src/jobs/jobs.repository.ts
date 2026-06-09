@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, count } from "drizzle-orm";
 
 import { db } from "../db/client.js";
 import { jobs, results } from "../db/schema.js";
@@ -33,20 +33,38 @@ export async function getUserJobById(input: {
   });
 }
 
-export async function getUserJobs(input: {
+export async function getUserJobsPage(input: {
   userId: string;
   page: number;
   limit: number;
 }) {
   const offset = (input.page - 1) * input.limit;
 
-  return db
+  const rows = await db
     .select()
     .from(jobs)
     .where(eq(jobs.userId, input.userId))
     .orderBy(desc(jobs.createdAt))
     .limit(input.limit)
     .offset(offset);
+
+  const [totalRow] = await db
+    .select({ total: count() })
+    .from(jobs)
+    .where(eq(jobs.userId, input.userId));
+
+  const total = Number(totalRow?.total ?? 0);
+  const totalPages = Math.max(Math.ceil(total / input.limit), 1);
+
+  return {
+    jobs: rows,
+    total,
+    totalPages,
+    page: input.page,
+    limit: input.limit,
+    hasPreviousPage: input.page > 1,
+    hasNextPage: input.page < totalPages,
+  };
 }
 
 export async function updateJobRunning(jobId: string) {
@@ -140,14 +158,77 @@ export async function failJob(input: {
     .where(eq(jobs.id, input.jobId));
 }
 
-export async function getResultsForJob(input: {
+export async function getResultsPageForJob(input: {
   jobId: string;
   userId: string;
+  page: number;
+  limit: number;
+  sortBy: "position" | "price_asc" | "price_desc";
 }) {
-  return db
+  const rows = await db
     .select()
     .from(results)
     .where(and(eq(results.jobId, input.jobId), eq(results.userId, input.userId)));
+
+  const getPrice = (row: typeof rows[number]) => {
+    const data = row.data as {
+      price?: number | string | null;
+      minPrice?: number | string | null;
+    };
+
+    const rawPrice = data.price ?? data.minPrice;
+
+    if (typeof rawPrice === "number") {
+      return Number.isFinite(rawPrice) ? rawPrice : null;
+    }
+
+    if (typeof rawPrice === "string") {
+      const parsed = Number.parseFloat(
+        rawPrice.replace(/,/g, "").replace(/[^\d.-]/g, "")
+      );
+
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  };
+
+  const sortedRows = [...rows].sort((a, b) => {
+    if (input.sortBy === "position") {
+      return a.position - b.position;
+    }
+
+    const priceA = getPrice(a);
+    const priceB = getPrice(b);
+
+    /**
+     * Missing prices go to bottom for both asc and desc.
+     */
+    if (priceA === null && priceB === null) return a.position - b.position;
+    if (priceA === null) return 1;
+    if (priceB === null) return -1;
+
+    if (input.sortBy === "price_asc") {
+      return priceA - priceB;
+    }
+
+    return priceB - priceA;
+  });
+
+  const total = sortedRows.length;
+  const totalPages = Math.max(Math.ceil(total / input.limit), 1);
+  const offset = (input.page - 1) * input.limit;
+  const paginatedRows = sortedRows.slice(offset, offset + input.limit);
+
+  return {
+    results: paginatedRows,
+    total,
+    totalPages,
+    page: input.page,
+    limit: input.limit,
+    hasPreviousPage: input.page > 1,
+    hasNextPage: input.page < totalPages,
+  };
 }
 
 export async function createEbayJobRecord(input: {
@@ -327,5 +408,30 @@ export async function completeAmazonJobWithResults(input: {
         updatedAt: new Date(),
       })
       .where(eq(jobs.id, input.jobId));
+  });
+}
+
+export async function deleteUserJob(input: {
+  jobId: string;
+  userId: string;
+}) {
+  return db.transaction(async (tx) => {
+    const job = await tx.query.jobs.findFirst({
+      where: and(eq(jobs.id, input.jobId), eq(jobs.userId, input.userId)),
+    });
+
+    if (!job) {
+      return null;
+    }
+
+    await tx
+      .delete(results)
+      .where(and(eq(results.jobId, input.jobId), eq(results.userId, input.userId)));
+
+    await tx
+      .delete(jobs)
+      .where(and(eq(jobs.id, input.jobId), eq(jobs.userId, input.userId)));
+
+    return job;
   });
 }

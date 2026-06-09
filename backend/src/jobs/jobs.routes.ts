@@ -14,9 +14,10 @@ import {
   createEbayJobRecord,
   createGoogleJobRecord,
   createAmazonJobRecord,
-  getResultsForJob,
+  getResultsPageForJob,
   getUserJobById,
-  getUserJobs,
+  getUserJobsPage,
+  deleteUserJob,
 } from "./jobs.repository.js";
 import {
   addShopifyJob,
@@ -44,6 +45,7 @@ import {
 } from "../queue/amazon.queue.js";
 
 const MAX_QUEUE_DEPTH = 1000;
+const DELETABLE_JOB_STATUSES = ["done", "error", "timeout"] as const;
 
 function getAuthenticatedUser(request: FastifyRequest) {
   if (!request.user?.id) {
@@ -267,9 +269,9 @@ export async function jobsRoutes(app: FastifyInstance) {
   });
 
   /**
-   * GET /api/v1/jobs
-   * Lists current user's jobs.
-   */
+ * GET /api/v1/jobs
+ * Lists current user's jobs with pagination.
+ */
   app.get("/", { preHandler: requireAuth }, async (request, reply) => {
     const user = getAuthenticatedUser(request);
 
@@ -278,11 +280,18 @@ export async function jobsRoutes(app: FastifyInstance) {
       limit?: string;
     };
 
-    // For pagination safety.
-    const page = Math.max(Number(query.page ?? 1), 1);  // Default to page 1, minimum 1
-    const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);  // Default to 20, minimum 1, maximum 100
+    const parsedPage = Number(query.page ?? 1);
+    const parsedLimit = Number(query.limit ?? 5);
 
-    const userJobs = await getUserJobs({
+    const page = Number.isFinite(parsedPage)
+      ? Math.max(parsedPage, 1)
+      : 1;
+
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 10;
+
+    const jobsPage = await getUserJobsPage({
       userId: user.id,
       page,
       limit,
@@ -290,11 +299,7 @@ export async function jobsRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: {
-        jobs: userJobs,
-        page,
-        limit,
-      },
+      data: jobsPage,
     });
   });
 
@@ -329,7 +334,7 @@ export async function jobsRoutes(app: FastifyInstance) {
 
   /**
  * GET /api/v1/jobs/:id/results
- * Returns paginated results for a finished scraping job.
+ * Returns paginated and sorted results for a finished scraping job.
  */
   app.get("/:id/results", { preHandler: requireAuth }, async (request, reply) => {
     const user = getAuthenticatedUser(request);
@@ -361,40 +366,13 @@ export async function jobsRoutes(app: FastifyInstance) {
       });
     }
 
-    const rows = await getResultsForJob({
+    const resultsPage = await getResultsPageForJob({
       jobId: params.id,
       userId: user.id,
+      page: query.page,
+      limit: query.limit,
+      sortBy: query.sortBy,
     });
-
-    let sortedRows = [...rows];
-
-    /**
-     * JSONB price sort is easier in application code for MVP.
-     */
-    if (query.sortBy === "price_asc" || query.sortBy === "price_desc") {
-      const getPrice = (row: typeof rows[number]) => {
-        const data = row.data as { price?: number | null };
-        return typeof data.price === "number" ? data.price : null;
-      };
-
-      sortedRows.sort((a, b) => {
-        const aPrice = getPrice(a);
-        const bPrice = getPrice(b);
-
-        if (aPrice === null && bPrice === null) return 0;
-        if (aPrice === null) return 1;
-        if (bPrice === null) return -1;
-
-        return query.sortBy === "price_asc"
-          ? aPrice - bPrice
-          : bPrice - aPrice;
-      });
-    } else {
-      sortedRows.sort((a, b) => a.position - b.position);
-    }
-
-    const start = (query.page - 1) * query.limit;
-    const paginatedRows = sortedRows.slice(start, start + query.limit);
 
     return reply.send({
       success: true,
@@ -403,10 +381,15 @@ export async function jobsRoutes(app: FastifyInstance) {
         status: job.status,
         totalScraped: job.totalScraped,
         totalFiltered: job.totalFiltered,
-        page: query.page,
-        limit: query.limit,
-        total: sortedRows.length,
-        results: paginatedRows.map((row) => ({
+
+        page: resultsPage.page,
+        limit: resultsPage.limit,
+        total: resultsPage.total,
+        totalPages: resultsPage.totalPages,
+        hasPreviousPage: resultsPage.hasPreviousPage,
+        hasNextPage: resultsPage.hasNextPage,
+
+        results: resultsPage.results.map((row) => ({
           id: row.id,
           position: row.position,
           data: row.data,
@@ -414,4 +397,55 @@ export async function jobsRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  /**
+ * DELETE /api/v1/jobs/:id
+ * Deletes a finished user's job and its stored results.
+ */
+  app.delete("/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const user = getAuthenticatedUser(request);
+    const params = jobIdParamsSchema.parse(request.params);
+
+    const job = await getUserJobById({
+      jobId: params.id,
+      userId: user.id,
+    });
+
+    if (!job) {
+      throw new AppError({
+        statusCode: 404,
+        code: "job_not_found",
+        message: "Job not found",
+      });
+    }
+
+    if (!isDeletableJobStatus(job.status)) {
+      throw new AppError({
+        statusCode: 409,
+        code: "job_not_deletable",
+        message: "Only finished jobs can be deleted",
+        details: {
+          currentStatus: job.status,
+          allowedStatuses: ["done", "error", "timeout"],
+        },
+      });
+    }
+
+    const deletedJob = await deleteUserJob({
+      jobId: job.id,
+      userId: user.id,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        message: "Job deleted successfully",
+        jobId: deletedJob?.id ?? job.id,
+      },
+    });
+  });
+
+  function isDeletableJobStatus(status: string) {
+    return status === "done" || status === "error" || status === "timeout";
+  }
 }

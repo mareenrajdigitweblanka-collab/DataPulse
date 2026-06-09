@@ -129,7 +129,7 @@ export const api = {
     });
   },
 
-  listJobs(token: string, page = 1, limit = 20) {
+  listJobs(token: string, page = 1, limit = 7) {
     return request<ApiSuccess<JobsListData>>(
       `/jobs?page=${page}&limit=${limit}`,
       {
@@ -146,11 +146,27 @@ export const api = {
     });
   },
 
-  getResults(token: string, jobId: string, sortBy = "position") {
+  getResults(
+    token: string,
+    jobId: string,
+    page = 1,
+    limit = 40,
+    sortBy: "position" | "price_asc" | "price_desc" = "position"
+  ) {
     return request<ApiSuccess<ResultsData>>(
-      `/jobs/${jobId}/results?page=1&limit=100&sortBy=${sortBy}`,
+      `/jobs/${jobId}/results?page=${page}&limit=${limit}&sortBy=${sortBy}`,
       {
         method: "GET",
+        token,
+      }
+    );
+  },
+  
+  deleteJob(token: string, jobId: string) {
+    return request<ApiSuccess<{ message: string; jobId: string }>>(
+      `/jobs/${jobId}`,
+      {
+        method: "DELETE",
         token,
       }
     );

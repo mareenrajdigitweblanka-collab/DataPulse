@@ -67,8 +67,12 @@ export type CreateJobData = {
 
 export type JobsListData = {
   jobs: Job[];
+  total: number;
+  totalPages: number;
   page: number;
   limit: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 };
 
 export type JobData = {
@@ -81,6 +85,8 @@ export type ResultRow = {
   data: Record<string, unknown>;
 };
 
+export type ResultsSortBy = "position" | "price_asc" | "price_desc";
+
 export type ResultsData = {
   jobId: string;
   status: JobStatus;
@@ -89,6 +95,9 @@ export type ResultsData = {
   page: number;
   limit: number;
   total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
   results: ResultRow[];
 };
 

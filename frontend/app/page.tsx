@@ -8,12 +8,14 @@ import { CreateJobForm } from "@/components/CreateJobForm";
 import { JobStatusCard } from "@/components/JobStatusCard";
 import { RecentJobs } from "@/components/RecentJobs";
 import { ResultsTable } from "@/components/ResultsTable";
+import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { api } from "@/lib/api";
 import type {
   CreateJobPayload,
   Job,
   JobStatus,
   ResultRow,
+  ResultsSortBy,
 } from "@/lib/types";
 
 const FINISHED_STATUSES: JobStatus[] = ["done", "error", "timeout"];
@@ -35,21 +37,38 @@ export default function DashboardPage() {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /* Redirect to login if not authenticated */
+  const [jobPage, setJobPage] = useState(1);
+  const [jobLimit] = useState(7);
+  const [jobTotal, setJobTotal] = useState(0);
+  const [jobTotalPages, setJobTotalPages] = useState(1);
+  const [hasPreviousJobsPage, setHasPreviousJobsPage] = useState(false);
+  const [hasNextJobsPage, setHasNextJobsPage] = useState(false);
+
+  const [resultSortBy, setResultSortBy] =
+    useState<ResultsSortBy>("position");
+  const [resultPage, setResultPage] = useState(1);
+  const [resultLimit] = useState(50);
+  const [resultTotal, setResultTotal] = useState(0);
+  const [resultTotalPages, setResultTotalPages] = useState(1);
+  const [hasPreviousResultsPage, setHasPreviousResultsPage] = useState(false);
+  const [hasNextResultsPage, setHasNextResultsPage] = useState(false);
+
+  const [jobPendingDelete, setJobPendingDelete] = useState<Job | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace("/login");
     }
   }, [isLoading, isAuthenticated, router]);
 
-  /* Load jobs on mount */
   useEffect(() => {
     if (token) {
-      loadJobs(token).catch((err) => setError(getErrorMessage(err)));
+      loadJobs(token, 1).catch((err) => setError(getErrorMessage(err)));
     }
   }, [token]);
 
-  /* Poll active job */
   useEffect(() => {
     if (!token || !activeJob) return;
     if (FINISHED_STATUSES.includes(activeJob.status)) return;
@@ -62,10 +81,10 @@ export default function DashboardPage() {
         setActiveJob(latestJob);
 
         if (FINISHED_STATUSES.includes(latestJob.status)) {
-          await loadJobs(token);
+          await loadJobs(token, jobPage);
 
           if (latestJob.status === "done") {
-            await loadResults(token, latestJob.id);
+            await loadResults(latestJob.id, 1, resultSortBy);
           }
         }
       } catch (err) {
@@ -74,33 +93,102 @@ export default function DashboardPage() {
     }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [token, activeJob?.id, activeJob?.status]);
+  }, [token, activeJob?.id, activeJob?.status, jobPage, resultSortBy]);
 
-  async function loadJobs(nextToken = token) {
+  async function loadJobs(nextToken = token, page = jobPage) {
     if (!nextToken) return;
-    const response = await api.listJobs(nextToken);
+
+    const response = await api.listJobs(nextToken, page, jobLimit);
+
     setJobs(response.data.jobs);
+    setJobPage(response.data.page);
+    setJobTotal(response.data.total);
+    setJobTotalPages(response.data.totalPages);
+    setHasPreviousJobsPage(response.data.hasPreviousPage);
+    setHasNextJobsPage(response.data.hasNextPage);
   }
 
-  async function loadResults(nextToken: string, jobId: string) {
+  async function handlePreviousJobsPage() {
+    if (!token || !hasPreviousJobsPage) return;
+    await loadJobs(token, jobPage - 1);
+  }
+
+  async function handleNextJobsPage() {
+    if (!token || !hasNextJobsPage) return;
+    await loadJobs(token, jobPage + 1);
+  }
+
+  async function loadResults(
+    jobId: string,
+    page = resultPage,
+    sortBy = resultSortBy
+  ) {
+    if (!token) return;
+
     setResultsLoading(true);
     setError("");
 
     try {
-      const response = await api.getResults(nextToken, jobId);
+      const response = await api.getResults(
+        token,
+        jobId,
+        page,
+        resultLimit,
+        sortBy
+      );
+
+      const total = Number(response.data.total ?? response.data.results.length);
+      const totalPages = Number(
+        response.data.totalPages ?? Math.max(Math.ceil(total / resultLimit), 1)
+      );
+
       setResults(response.data.results);
-    } catch (err) {
-      setError(getErrorMessage(err));
+      setResultPage(Number(response.data.page ?? page));
+      setResultTotal(total);
+      setResultTotalPages(totalPages);
+      setHasPreviousResultsPage(
+        response.data.hasPreviousPage ?? page > 1
+      );
+      setHasNextResultsPage(
+        response.data.hasNextPage ?? page < totalPages
+      );
     } finally {
       setResultsLoading(false);
     }
+  }
+
+  async function handlePreviousResultsPage() {
+    if (!activeJob || !hasPreviousResultsPage) return;
+    await loadResults(activeJob.id, resultPage - 1, resultSortBy);
+  }
+
+  async function handleNextResultsPage() {
+    if (!activeJob || !hasNextResultsPage) return;
+    await loadResults(activeJob.id, resultPage + 1, resultSortBy);
+  }
+
+  async function handleResultSortChange(nextSortBy: ResultsSortBy) {
+    setResultSortBy(nextSortBy);
+    setResultPage(1);
+
+    if (!activeJob) return;
+    await loadResults(activeJob.id, 1, nextSortBy);
+  }
+
+  function resetResultsState() {
+    setResults([]);
+    setResultPage(1);
+    setResultTotal(0);
+    setResultTotalPages(1);
+    setHasPreviousResultsPage(false);
+    setHasNextResultsPage(false);
   }
 
   function handleLogout() {
     logout();
     setJobs([]);
     setActiveJob(null);
-    setResults([]);
+    resetResultsState();
     setError("");
     router.replace("/login");
   }
@@ -113,14 +201,14 @@ export default function DashboardPage() {
 
     setJobLoading(true);
     setError("");
-    setResults([]);
+    resetResultsState();
 
     try {
       const created = await api.createJob(token, payload);
       const jobResponse = await api.getJob(token, created.data.jobId);
 
       setActiveJob(jobResponse.data.job);
-      await loadJobs(token);
+      await loadJobs(token, 1);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -132,7 +220,7 @@ export default function DashboardPage() {
     if (!token) return;
 
     setError("");
-    setResults([]);
+    resetResultsState();
 
     try {
       const response = await api.getJob(token, job.id);
@@ -141,23 +229,54 @@ export default function DashboardPage() {
       setActiveJob(freshJob);
 
       if (freshJob.status === "done") {
-        await loadResults(token, freshJob.id);
+        await loadResults(freshJob.id, 1, resultSortBy);
       }
     } catch (err) {
       setError(getErrorMessage(err));
     }
   }
 
-  /* Loading state */
+  function handleDeleteJob(job: Job) {
+    setJobPendingDelete(job);
+  }
+
+  async function confirmDeleteJob() {
+    if (!token || !jobPendingDelete) return;
+
+    setDeleteLoading(true);
+    setDeletingJobId(jobPendingDelete.id);
+    setError("");
+
+    try {
+      await api.deleteJob(token, jobPendingDelete.id);
+
+      if (activeJob?.id === jobPendingDelete.id) {
+        setActiveJob(null);
+        resetResultsState();
+      }
+
+      const nextTotal = Math.max(jobTotal - 1, 0);
+      const nextTotalPages = Math.max(Math.ceil(nextTotal / jobLimit), 1);
+      const nextPage = Math.min(jobPage, nextTotalPages);
+
+      setJobPendingDelete(null);
+
+      await loadJobs(token, nextPage);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDeleteLoading(false);
+      setDeletingJobId(null);
+    }
+  }
+
   if (isLoading) {
     return (
       <main
         className="flex min-h-screen items-center justify-center"
         style={{ background: "var(--bg-primary)" }}
       >
-        <div
-          className="card flex items-center gap-3 px-6 py-5"
-        >
+        <div className="card flex items-center gap-3 px-6 py-5">
           <span className="spinner" />
           <span
             className="text-sm font-semibold"
@@ -170,14 +289,12 @@ export default function DashboardPage() {
     );
   }
 
-  /* Not authenticated — will redirect */
   if (!isAuthenticated) {
     return null;
   }
 
   return (
     <main className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      {/* ─── Header ─── */}
       <header
         className="border-b"
         style={{
@@ -187,7 +304,6 @@ export default function DashboardPage() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            {/* Logo */}
             <div
               className="flex h-9 w-9 items-center justify-center rounded-xl"
               style={{ background: "var(--gradient-brand)" }}
@@ -205,6 +321,7 @@ export default function DashboardPage() {
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             </div>
+
             <div>
               <h1
                 className="text-lg font-bold"
@@ -224,7 +341,6 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
 
-            {/* User info */}
             <div className="hidden text-right sm:block">
               <p
                 className="text-sm font-semibold"
@@ -237,7 +353,6 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* User avatar */}
             <div
               className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white"
               style={{ background: "var(--gradient-brand)" }}
@@ -262,7 +377,6 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ─── Content ─── */}
       <div className="mx-auto max-w-7xl px-6 py-8">
         {error && (
           <div
@@ -278,38 +392,73 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-          <CreateJobForm loading={jobLoading} onCreateJob={handleCreateJob} />
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+            <CreateJobForm loading={jobLoading} onCreateJob={handleCreateJob} />
 
-          <section className="space-y-6">
-            {activeJob && (
-              <JobStatusCard
-                job={activeJob}
-                loadingResults={resultsLoading}
-                onLoadResults={() => {
+            <section className="space-y-6">
+              {activeJob && (
+                <JobStatusCard
+                  job={activeJob}
+                  loadingResults={resultsLoading}
+                  onLoadResults={() => {
+                    loadResults(activeJob.id, 1, resultSortBy).catch((err) =>
+                      setError(getErrorMessage(err))
+                    );
+                  }}
+                />
+              )}
+              <RecentJobs
+                jobs={jobs}
+                page={jobPage}
+                totalPages={jobTotalPages}
+                total={jobTotal}
+                hasPreviousPage={hasPreviousJobsPage}
+                hasNextPage={hasNextJobsPage}
+                activeJobId={activeJob?.id ?? null}
+                deletingJobId={deletingJobId}
+                onRefresh={() => {
                   if (token) {
-                    loadResults(token, activeJob.id);
+                    loadJobs(token, jobPage).catch((err) =>
+                      setError(getErrorMessage(err))
+                    );
                   }
                 }}
+                onPreviousPage={handlePreviousJobsPage}
+                onNextPage={handleNextJobsPage}
+                onSelectJob={handleSelectJob}
+                onDeleteJob={handleDeleteJob}
               />
-            )}
+            </section>
+          </div>
 
-            <RecentJobs
-              jobs={jobs}
-              onRefresh={() => {
-                if (token) {
-                  loadJobs(token).catch((err) =>
-                    setError(getErrorMessage(err))
-                  );
-                }
-              }}
-              onSelectJob={handleSelectJob}
-            />
-
-            <ResultsTable results={results} loading={resultsLoading} />
-          </section>
+          <ResultsTable
+            results={results}
+            loading={resultsLoading}
+            sortBy={resultSortBy}
+            page={resultPage}
+            totalPages={resultTotalPages}
+            total={resultTotal}
+            hasPreviousPage={hasPreviousResultsPage}
+            hasNextPage={hasNextResultsPage}
+            onSortChange={handleResultSortChange}
+            onPreviousPage={handlePreviousResultsPage}
+            onNextPage={handleNextResultsPage}
+          />
         </div>
       </div>
+      {jobPendingDelete && (
+        <DeleteConfirmModal
+          job={jobPendingDelete}
+          deleting={deleteLoading}
+          onCancel={() => {
+            if (!deleteLoading) {
+              setJobPendingDelete(null);
+            }
+          }}
+          onConfirm={confirmDeleteJob}
+        />
+      )}
     </main>
   );
 }

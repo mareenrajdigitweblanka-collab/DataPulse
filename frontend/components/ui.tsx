@@ -77,9 +77,8 @@ export function StatusBadge({ status }: { status: JobStatus }) {
 
   return (
     <span
-      className="rounded-full px-3 py-1 text-xs font-bold uppercase"
+      className="px-3 py-1 text-xs font-bold uppercase"
       style={{
-        background: style.bg,
         color: style.color,
       }}
     >
