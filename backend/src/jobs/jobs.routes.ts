@@ -88,7 +88,7 @@ async function enforceJobRateLimit(userId: string) {
 export async function jobsRoutes(app: FastifyInstance) {
   /**
    * POST /api/v1/jobs
-   * Creates a Shopify scrape job and pushes it to BullMQ.
+   * Creates a new scraping job for the authenticated user.
    */
   app.post("/", { preHandler: requireAuth }, async (request, reply) => {
     const user = getAuthenticatedUser(request);

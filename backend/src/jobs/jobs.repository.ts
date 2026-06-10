@@ -4,26 +4,6 @@ import { db } from "../db/client.js";
 import { jobs, results } from "../db/schema.js";
 import type { AmazonFilters, EbayFilters, GoogleFilters, ShopifyFilters } from "./jobs.schema.js";
 
-export async function createShopifyJobRecord(input: {
-  userId: string;
-  query: string;
-  filters: ShopifyFilters;
-}) {
-  const [job] = await db
-    .insert(jobs)
-    .values({
-      userId: input.userId,
-      channel: "shopify",
-      query: input.query,
-      filters: input.filters,
-      status: "queued",
-      progressPercent: 0,
-    })
-    .returning();
-
-  return job;
-}
-
 export async function getUserJobById(input: {
   jobId: string;
   userId: string;
@@ -101,45 +81,6 @@ export async function updateJobFiltering(jobId: string) {
       updatedAt: new Date(),
     })
     .where(eq(jobs.id, jobId));
-}
-
-export async function completeJobWithResults(input: {
-  jobId: string;
-  userId: string;
-  scrapedCount: number;
-  filteredProducts: unknown[];
-}) {
-  await db.transaction(async (tx) => {
-    /**
-     * Clear old results for safety.
-     * This helps if a job is retried and reaches this point again.
-     */
-    await tx.delete(results).where(eq(results.jobId, input.jobId));
-
-    if (input.filteredProducts.length > 0) {
-      await tx.insert(results).values(
-        input.filteredProducts.map((product, index) => ({
-          jobId: input.jobId,
-          userId: input.userId,
-          channel: "shopify" as const,
-          position: index + 1,
-          data: product,
-        }))
-      );
-    }
-
-    await tx
-      .update(jobs)
-      .set({
-        status: "done",
-        progressPercent: 100,
-        totalScraped: input.scrapedCount,
-        totalFiltered: input.filteredProducts.length,
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(jobs.id, input.jobId));
-  });
 }
 
 export async function failJob(input: {
@@ -229,6 +170,65 @@ export async function getResultsPageForJob(input: {
     hasPreviousPage: input.page > 1,
     hasNextPage: input.page < totalPages,
   };
+}
+
+export async function createShopifyJobRecord(input: {
+  userId: string;
+  query: string;
+  filters: ShopifyFilters;
+}) {
+  const [job] = await db
+    .insert(jobs)
+    .values({
+      userId: input.userId,
+      channel: "shopify",
+      query: input.query,
+      filters: input.filters,
+      status: "queued",
+      progressPercent: 0,
+    })
+    .returning();
+
+  return job;
+}
+
+export async function completeShopifyJobWithResults(input: {
+  jobId: string;
+  userId: string;
+  scrapedCount: number;
+  filteredProducts: unknown[];
+}) {
+  await db.transaction(async (tx) => {
+    /**
+     * Clear old results for safety.
+     * This helps if a job is retried and reaches this point again.
+     */
+    await tx.delete(results).where(eq(results.jobId, input.jobId));
+
+    if (input.filteredProducts.length > 0) {
+      await tx.insert(results).values(
+        input.filteredProducts.map((product, index) => ({
+          jobId: input.jobId,
+          userId: input.userId,
+          channel: "shopify" as const,
+          position: index + 1,
+          data: product,
+        }))
+      );
+    }
+
+    await tx
+      .update(jobs)
+      .set({
+        status: "done",
+        progressPercent: 100,
+        totalScraped: input.scrapedCount,
+        totalFiltered: input.filteredProducts.length,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, input.jobId));
+  });
 }
 
 export async function createEbayJobRecord(input: {

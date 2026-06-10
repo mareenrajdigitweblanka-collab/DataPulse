@@ -10,7 +10,7 @@ import {
 import { scrapeShopifyProducts } from "../scrapers/shopify.scraper.js";
 import { filterShopifyProducts } from "../filters/shopify.filter.js";
 import {
-  completeJobWithResults,
+  completeShopifyJobWithResults,
   failJob,
   updateJobFiltering,
   updateJobProgress,
@@ -104,7 +104,7 @@ const worker = new Worker<ShopifyJobData>(
     /**
      * Store filtered results.
      */
-    await completeJobWithResults({
+    await completeShopifyJobWithResults({
       jobId: data.jobId,
       userId: data.userId,
       scrapedCount: summary.totalScraped,

@@ -28,6 +28,7 @@ const envSchema = z.object({
   EBAY_CLIENT_SECRET: z.string().min(1).optional(),
   EBAY_MARKETPLACE_ID: z.string().min(1).default("EBAY_GB"),
   EBAY_SEARCH_LIMIT: z.coerce.number().int().min(1).max(200).default(50),
+  EBAY_SEARCH_MAX_TOTAL: z.coerce.number().int().min(1).max(10_000).default(200),
 
 
   /**

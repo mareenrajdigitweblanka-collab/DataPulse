@@ -3,6 +3,8 @@
 import type { ResultRow, ResultsSortBy } from "@/lib/types";
 import { EmptyBox } from "./ui";
 
+type ResultData = Record<string, unknown>;
+
 function getDisplayValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
 
@@ -15,7 +17,7 @@ function getDisplayValue(value: unknown) {
   }
 
   if (typeof value === "string") {
-    return value;
+    return value.trim() === "" ? "—" : value;
   }
 
   if (Array.isArray(value)) {
@@ -29,17 +31,63 @@ function getDisplayValue(value: unknown) {
   return String(value);
 }
 
-function getResultData(row: ResultRow) {
-  return row.data ?? {};
+function getResultData(row: ResultRow): ResultData {
+  if (row.data && typeof row.data === "object" && !Array.isArray(row.data)) {
+    return row.data as ResultData;
+  }
+
+  return {};
+}
+
+function getString(data: ResultData, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+
+    if (typeof value === "string" && value.trim() !== "") {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getNumber(data: ResultData, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
+
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getBoolean(data: ResultData, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function getTitle(row: ResultRow) {
   const data = getResultData(row);
 
   return (
-    (typeof data.title === "string" && data.title) ||
-    (typeof data.name === "string" && data.name) ||
-    (typeof data.productTitle === "string" && data.productTitle) ||
+    getString(data, ["title", "name", "productTitle", "product_title"]) ??
     "Untitled result"
   );
 }
@@ -47,31 +95,164 @@ function getTitle(row: ResultRow) {
 function getPrice(row: ResultRow) {
   const data = getResultData(row);
 
-  if (typeof data.price === "number") return data.price;
-  if (typeof data.minPrice === "number") return data.minPrice;
-
-  return null;
+  return getNumber(data, ["price", "minPrice", "min_price"]);
 }
 
 function getImageUrl(row: ResultRow) {
   const data = getResultData(row);
 
-  if (typeof data.imageUrl === "string") return data.imageUrl;
-  if (typeof data.image_url === "string") return data.image_url;
-  if (typeof data.main_image_url === "string") return data.main_image_url;
-
-  return null;
+  return getString(data, [
+    "imageUrl",
+    "image_url",
+    "main_image_url",
+    "thumbnail",
+    "thumbnailUrl",
+  ]);
 }
 
 function getProductUrl(row: ResultRow) {
   const data = getResultData(row);
 
-  if (typeof data.productUrl === "string") return data.productUrl;
-  if (typeof data.url === "string") return data.url;
-  if (typeof data.listingUrl === "string") return data.listingUrl;
-  if (typeof data.listing_url === "string") return data.listing_url;
+  return getString(data, [
+    // Common / Google / Shopify
+    "productUrl",
+    "product_url",
+
+    // eBay
+    "itemUrl",
+    "itemWebUrl",
+
+    // Google fallback
+    "storeUrl",
+
+    // Other fallbacks
+    "url",
+    "listingUrl",
+    "listing_url",
+  ]);
+}
+
+function getVendorOrSeller(row: ResultRow) {
+  const data = getResultData(row);
+
+  return getString(data, [
+    // Shopify
+    "vendor",
+
+    // eBay
+    "sellerUsername",
+    "seller",
+
+    // Google Shopping
+    "storeName",
+    "source",
+    "store",
+
+    // Amazon / common
+    "brand",
+    "sellerName",
+    "merchant",
+    "ASIN",
+    "asin",
+  ]);
+}
+
+function getTypeOrCondition(row: ResultRow) {
+  const data = getResultData(row);
+
+  const directValue = getString(data, [
+    // Shopify
+    "productType",
+    "product_type",
+
+    // eBay
+    "condition",
+
+    // Common
+    "category",
+    "categoryName",
+    "category_name",
+  ]);
+
+  if (directValue) return directValue;
+
+  /**
+   * Amazon-specific display.
+   *
+   * Amazon result sample has:
+   * ASIN, isPrime, isAvailable, rating, reviewCount.
+   *
+   * Show Prime/stock status before rating because it is more useful
+   * in the Type / Condition column.
+   */
+  const asin = getString(data, ["ASIN", "asin"]);
+  const isPrime = getBoolean(data, ["isPrime", "primeEligible"]);
+
+  if (asin && isPrime === true) {
+    return "Prime eligible";
+  }
+
+  if (asin && isPrime === false) {
+    return "Non-Prime";
+  }
+
+  /**
+   * Stock / availability display.
+   *
+   * Works for Amazon/eBay/Google/common channels.
+   */
+  const isInStock = getBoolean(data, ["isInStock", "inStock", "isAvailable"]);
+
+  if (isInStock === true) return "In stock";
+  if (isInStock === false) return "Out of stock";
+
+  /**
+   * Google Shopping delivery/shipping display.
+   */
+  const delivery = getString(data, ["delivery", "shippingText", "shipping"]);
+
+  if (delivery) return delivery;
+
+  /**
+   * Rating/review display.
+   *
+   * Amazon uses reviewCount.
+   * Google uses reviews.
+   */
+  const rating = getNumber(data, ["rating", "starRating"]);
+  const reviews = getNumber(data, ["reviews", "reviewCount", "review_count"]);
+
+  if (rating !== null && reviews !== null) {
+    return `${rating}★ / ${reviews} reviews`;
+  }
+
+  if (rating !== null) {
+    return `${rating}★`;
+  }
+
+  /**
+   * eBay shipping fallback.
+   */
+  const isFreeShipping = getBoolean(data, ["isFreeShipping", "freeShipping"]);
+
+  if (isFreeShipping === true) return "Free shipping";
 
   return null;
+}
+
+function formatPrice(row: ResultRow) {
+  const data = getResultData(row);
+  const price = getPrice(row);
+
+  if (price === null) return "—";
+
+  const currency = getString(data, ["currency"]);
+
+  if (currency) {
+    return `${currency} ${price}`;
+  }
+
+  return String(price);
 }
 
 export function ResultsTable({
@@ -99,6 +280,8 @@ export function ResultsTable({
   onPreviousPage: () => void;
   onNextPage: () => void;
 }) {
+  const safeTotalPages = Math.max(totalPages, 1);
+
   return (
     <section className="card p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -109,11 +292,12 @@ export function ResultsTable({
           >
             Results
           </h2>
+
           <p
             className="mt-1 text-sm"
             style={{ color: "var(--text-secondary)" }}
           >
-            Page {page} of {totalPages} · {total} results
+            Page {page} of {safeTotalPages} · {total} results
           </p>
         </div>
 
@@ -222,23 +406,10 @@ export function ResultsTable({
                   style={{ borderColor: "var(--border-primary)" }}
                 >
                   {results.map((row) => {
-                    const data = getResultData(row);
                     const imageUrl = getImageUrl(row);
                     const productUrl = getProductUrl(row);
-                    const price = getPrice(row);
-
-                    const vendor =
-                      data.vendor ??
-                      data.seller ??
-                      data.sellerUsername ??
-                      data.brand ??
-                      null;
-
-                    const typeOrCondition =
-                      data.productType ??
-                      data.condition ??
-                      data.category ??
-                      null;
+                    const vendor = getVendorOrSeller(row);
+                    const typeOrCondition = getTypeOrCondition(row);
 
                     return (
                       <tr
@@ -257,7 +428,7 @@ export function ResultsTable({
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={imageUrl}
-                              alt=""
+                              alt={getTitle(row)}
                               className="h-12 w-12 rounded-lg object-cover"
                             />
                           ) : (
@@ -284,7 +455,7 @@ export function ResultsTable({
                           className="px-4 py-3 align-top"
                           style={{ color: "var(--text-secondary)" }}
                         >
-                          {price === null ? "—" : price}
+                          {formatPrice(row)}
                         </td>
 
                         <td
@@ -330,11 +501,8 @@ export function ResultsTable({
             className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
             style={{ borderColor: "var(--border-primary)" }}
           >
-            <p
-              className="text-xs"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Showing page {page} of {totalPages} · {total} results
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Showing page {page} of {safeTotalPages} · {total} results
             </p>
 
             <div className="flex items-center gap-2">

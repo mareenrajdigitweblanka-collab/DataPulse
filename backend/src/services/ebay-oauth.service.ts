@@ -2,19 +2,26 @@ import { env } from "../env.js";
 import { redisConnection } from "../queue/redis.js";
 
 type EbayOAuthResponse = {
-  access_token: string;
-  expires_in: number;
-  token_type: string;
+  access_token?: string;
+  expires_in?: number;
+  token_type?: string;
 };
 
 function getEbayOAuthUrl() {
   if (env.EBAY_ENVIRONMENT === "production") {
     return "https://api.ebay.com/identity/v1/oauth2/token";
   }
-
+  console.log('Falling back to eBay sandbox environment for OAuth');
   return "https://api.sandbox.ebay.com/identity/v1/oauth2/token";
 }
 
+/**
+ * Validate required eBay Application Keys.
+ *
+ * eBay Developer Program names:
+ * - App ID  = Client ID
+ * - Cert ID = Client Secret
+ */
 function getRequiredEbayCredentials() {
   if (!env.EBAY_CLIENT_ID || !env.EBAY_CLIENT_SECRET) {
     throw new Error(
@@ -28,9 +35,21 @@ function getRequiredEbayCredentials() {
   };
 }
 
+function safeParseOAuthResponse(text: string): EbayOAuthResponse {
+  try {
+    return JSON.parse(text) as EbayOAuthResponse;
+  } catch {
+    throw new Error("eBay OAuth returned invalid JSON response");
+  }
+}
+
 /**
- * eBay OAuth application token.
- * Cached in Redis so we do not request a new token for every job.
+ * Get eBay OAuth application access token.
+ *
+ * This uses client_credentials flow, which is suitable for application-level
+ * Browse API searches.
+ *
+ * Token is cached in Redis so every scraping job does not request a new token.
  */
 export async function getEbayAccessToken() {
   const cacheKey = `ebay:oauth:${env.EBAY_ENVIRONMENT}:access_token`;
@@ -49,6 +68,10 @@ export async function getEbayAccessToken() {
 
   const body = new URLSearchParams();
   body.set("grant_type", "client_credentials");
+
+  /**
+   * Default eBay application scope for Browse API.
+   */
   body.set("scope", "https://api.ebay.com/oauth/api_scope");
 
   const response = await fetch(getEbayOAuthUrl(), {
@@ -68,16 +91,22 @@ export async function getEbayAccessToken() {
     );
   }
 
-  const json = JSON.parse(responseText) as EbayOAuthResponse;
+  const json = safeParseOAuthResponse(responseText);
 
   if (!json.access_token) {
     throw new Error("eBay OAuth response did not include access_token");
   }
 
   /**
-   * Cache slightly shorter than the actual token expiry.
+   * eBay normally returns expires_in in seconds.
+   * Cache slightly shorter than real expiry to avoid using an expired token.
    */
-  const ttlSeconds = Math.max(json.expires_in - 60, 60);
+  const expiresIn =
+    typeof json.expires_in === "number" && Number.isFinite(json.expires_in)
+      ? json.expires_in
+      : 7200;
+
+  const ttlSeconds = Math.max(expiresIn - 60, 60);
 
   await redisConnection.set(cacheKey, json.access_token, "EX", ttlSeconds);
 
