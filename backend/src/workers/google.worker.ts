@@ -17,6 +17,8 @@ import {
   updateJobRunning,
 } from "../jobs/jobs.repository.js";
 
+const GOOGLE_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -37,6 +39,58 @@ async function withTimeout<T>(
   }
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim() !== "") {
+    return error.message;
+  }
+
+  if (typeof error === "string" && error.trim() !== "") {
+    return error;
+  }
+
+  return "Unknown Google Shopping worker error";
+}
+
+function getErrorName(error: unknown) {
+  if (error instanceof Error && error.name.trim() !== "") {
+    return error.name;
+  }
+
+  return "UnknownError";
+}
+
+function getErrorStack(error: unknown) {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+
+  return undefined;
+}
+
+function isTimeoutError(message: string) {
+  return message.toLowerCase().includes("timed out");
+}
+
+function isPermanentGoogleShoppingError(message: string) {
+  const lowerMessage = message.toLowerCase();
+
+  return (
+    lowerMessage.includes("missing serpapi_api_key") ||
+    lowerMessage.includes("invalid api key") ||
+    lowerMessage.includes("invalid api_key") ||
+    lowerMessage.includes("api key is missing") ||
+    lowerMessage.includes("unauthorized") ||
+    lowerMessage.includes("forbidden") ||
+    lowerMessage.includes("invalid parameter") ||
+    lowerMessage.includes("invalid engine") ||
+    lowerMessage.includes("account has run out") ||
+    lowerMessage.includes("no credits") ||
+    lowerMessage.includes("quota exceeded") ||
+    lowerMessage.includes("billing") ||
+    lowerMessage.includes("account disabled")
+  );
+}
+
 const worker = new Worker<GoogleJobData>(
   GOOGLE_QUEUE_NAME,
   async (job) => {
@@ -50,9 +104,13 @@ const worker = new Worker<GoogleJobData>(
     });
 
     await updateJobRunning(data.jobId);
+    await updateJobProgress({
+      jobId: data.jobId,
+      progressPercent: 10,
+    });
     await job.updateProgress(10);
 
-    let rawProducts;
+    let rawProducts: Awaited<ReturnType<typeof fetchGoogleShoppingProducts>>;
 
     try {
       rawProducts = await withTimeout(
@@ -60,37 +118,39 @@ const worker = new Worker<GoogleJobData>(
           query: data.query,
           filters: data.filters,
         }),
-        10 * 60 * 1000,
-        "Google Shopping job timed out after 10 minutes"
+        GOOGLE_WORKER_TIMEOUT_MS,
+        "Google Shopping job timed out after 15 minutes"
       );
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown Google Shopping error";
+      const message = getErrorMessage(error);
 
       /**
-       * These are configuration/authentication errors.
-       * Retrying will not fix them, so fail immediately.
+       * Configuration, authentication, quota, billing, and invalid parameter
+       * errors will not be fixed by retrying the job.
        */
-      if (
-        message.includes("Invalid API key") ||
-        message.includes("Missing SERPAPI_API_KEY")
-      ) {
+      if (isPermanentGoogleShoppingError(message)) {
         throw new UnrecoverableError(message);
       }
 
       /**
-       * Network errors, temporary SerpApi failures, and timeout errors can retry.
+       * Network errors, temporary API failures, and timeout errors can retry.
        */
       throw error;
     }
+
     await updateJobProgress({
       jobId: data.jobId,
       progressPercent: 70,
     });
-
     await job.updateProgress(70);
 
     await updateJobFiltering(data.jobId);
+
+    await updateJobProgress({
+      jobId: data.jobId,
+      progressPercent: 85,
+    });
+    await job.updateProgress(85);
 
     const { filteredProducts, summary } = filterGoogleShoppingProducts({
       products: rawProducts,
@@ -124,6 +184,8 @@ const worker = new Worker<GoogleJobData>(
     /**
      * Google Shopping uses paid API credits.
      * Keep concurrency lower than Shopify.
+     *
+     * If credits/cost are sensitive, reduce this to 1 or 2.
      */
     concurrency: 3,
   }
@@ -134,22 +196,36 @@ worker.on("failed", async (job, error) => {
 
   const attemptsAllowed = job.opts.attempts ?? 1;
   const attemptsMade = job.attemptsMade;
+  const message = getErrorMessage(error);
+  const errorName = getErrorName(error);
+  const stack = getErrorStack(error);
+
+  const isUnrecoverable =
+    error instanceof UnrecoverableError || errorName === "UnrecoverableError";
+
+  const isFinalAttempt = attemptsMade >= attemptsAllowed;
 
   console.error({
     event: "google_job_failed",
     jobId: job.data.jobId,
     attemptsMade,
     attemptsAllowed,
-    error: error.message,
+    isUnrecoverable,
+    errorName,
+    error: message,
+    stack,
   });
 
-  if (attemptsMade >= attemptsAllowed) {
-    const isTimeout = error.message.toLowerCase().includes("timed out");
-
+  /**
+   * Important:
+   * UnrecoverableError should update DB immediately.
+   * Final retry failure should also update DB.
+   */
+  if (isUnrecoverable || isFinalAttempt) {
     await failJob({
       jobId: job.data.jobId,
-      message: error.message,
-      status: isTimeout ? "timeout" : "error",
+      message,
+      status: isTimeoutError(message) ? "timeout" : "error",
     });
   }
 });
@@ -164,7 +240,9 @@ worker.on("completed", (job) => {
 worker.on("error", (error) => {
   console.error({
     event: "google_worker_error",
-    error: error.message,
+    errorName: getErrorName(error),
+    error: getErrorMessage(error),
+    stack: getErrorStack(error),
   });
 });
 

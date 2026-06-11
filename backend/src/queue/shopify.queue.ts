@@ -47,7 +47,7 @@ export async function getNextShopifyQueuePosition() {
 }
 
 export async function addShopifyJob(data: ShopifyJobData) {
-  return shopifyQueue.add("shopify.scrape", data, {
+  return shopifyQueue.add("shopify.fetch", data, {
     jobId: data.jobId,
 
     /**
