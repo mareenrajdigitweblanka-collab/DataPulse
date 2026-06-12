@@ -49,6 +49,7 @@ export function CreateJobForm({
   const [minRating, setMinRating] = useState("4");
   const [minReviewCount, setMinReviewCount] = useState("100");
   const [primeOnly, setPrimeOnly] = useState(false);
+  const [excludeSponsored, setExcludeSponsored] = useState(false);
 
   const helpText = useMemo(() => {
     if (channel === "shopify") {
@@ -125,6 +126,7 @@ export function CreateJobForm({
         minRating: toNumberOrUndefined(minRating),
         minReviewCount: toNumberOrUndefined(minReviewCount),
         primeOnly,
+        excludeSponsored,
       },
     };
   }
@@ -337,6 +339,12 @@ export function CreateJobForm({
               label="Prime only"
               checked={primeOnly}
               onChange={setPrimeOnly}
+            />
+
+            <CheckboxField
+              label="Exclude sponsored"
+              checked={excludeSponsored}
+              onChange={setExcludeSponsored}
             />
           </>
         )}

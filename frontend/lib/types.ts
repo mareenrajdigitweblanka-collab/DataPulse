@@ -150,6 +150,7 @@ export type AmazonJobPayload = {
     minRating?: number;
     minReviewCount?: number;
     primeOnly?: boolean;
+    excludeSponsored?: boolean;
   };
 };
 

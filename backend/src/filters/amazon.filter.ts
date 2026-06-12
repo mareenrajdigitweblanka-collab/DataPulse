@@ -20,6 +20,7 @@ export function filterAmazonProducts(input: {
     minRating,
     minReviewCount,
     primeOnly = false,
+    excludeSponsored = false,
   } = input.filters;
 
   if (typeof minPrice === "number") filtersApplied.push("Minimum Price");
@@ -28,6 +29,7 @@ export function filterAmazonProducts(input: {
   if (typeof minRating === "number") filtersApplied.push("Minimum Rating");
   if (typeof minReviewCount === "number") filtersApplied.push("Minimum Review Count");
   if (primeOnly) filtersApplied.push("Prime Only");
+  if (excludeSponsored) filtersApplied.push("Exclude Sponsored");
 
   const filteredProducts = input.products.filter((product) => {
     if (typeof minPrice === "number") {
@@ -53,6 +55,10 @@ export function filterAmazonProducts(input: {
     }
 
     if (primeOnly && product.isPrime !== true) {
+      return false;
+    }
+
+    if (excludeSponsored && product.isSponsored === true) {
       return false;
     }
 

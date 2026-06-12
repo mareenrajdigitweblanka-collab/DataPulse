@@ -41,6 +41,12 @@ async function withTimeout<T>(
   }
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim() !== "") return error.message;
+  if (typeof error === "string" && error.trim() !== "") return error;
+  return "Unknown Amazon worker error";
+}
+
 const worker = new Worker<AmazonJobData>(
   AMAZON_QUEUE_NAME,
   async (job) => {
@@ -71,7 +77,7 @@ const worker = new Worker<AmazonJobData>(
         console.error({
           event: "amazon_block_detected",
           jobId: data.jobId,
-          message: error.message,
+          message: getErrorMessage(error),
         });
       }
 
@@ -92,8 +98,6 @@ const worker = new Worker<AmazonJobData>(
       jobId: data.jobId,
       sample: rawProducts.slice(0, 3),
     });
-
-    await job.updateProgress(70);
 
     await updateJobFiltering(data.jobId);
 
@@ -145,17 +149,17 @@ worker.on("failed", async (job, error) => {
     jobId: job.data.jobId,
     attemptsMade,
     attemptsAllowed,
-    error: error.message,
+    error: getErrorMessage(error),
   });
 
   if (attemptsMade >= attemptsAllowed) {
-    const lower = error.message.toLowerCase();
+    const lower = getErrorMessage(error).toLowerCase();
 
     const isTimeout = lower.includes("timed out");
 
     await failJob({
       jobId: job.data.jobId,
-      message: error.message,
+      message: getErrorMessage(error),
       status: isTimeout ? "timeout" : "error",
     });
   }
@@ -171,7 +175,7 @@ worker.on("completed", (job) => {
 worker.on("error", (error) => {
   console.error({
     event: "amazon_worker_error",
-    error: error.message,
+    error: getErrorMessage(error),
   });
 });
 

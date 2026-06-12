@@ -54,6 +54,20 @@ function parseRating(text: string | null): number | null {
 function parseReviewCount(text: string | null): number | null {
   if (!text) return null;
 
+  const upper = text.trim().toUpperCase();
+
+  const kMatch = upper.match(/([0-9]+(?:\.[0-9]+)?)\s*K(?:[^A-Z0-9]|$)/);
+  if (kMatch) {
+    const n = Math.round(parseFloat(kMatch[1]) * 1_000);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  const mMatch = upper.match(/([0-9]+(?:\.[0-9]+)?)\s*M(?:[^A-Z0-9]|$)/);
+  if (mMatch) {
+    const n = Math.round(parseFloat(mMatch[1]) * 1_000_000);
+    return Number.isFinite(n) ? n : null;
+  }
+
   const cleaned = text.replace(/[^0-9]/g, "");
   const parsed = Number.parseInt(cleaned, 10);
 
@@ -103,18 +117,20 @@ async function launchAmazonBrowser() {
 }
 
 async function createAmazonContext(browser: Browser): Promise<BrowserContext> {
+  const { locale, timezoneId, acceptLanguage } = getLocaleForStore();
+
   return browser.newContext({
     viewport: {
       width: 1366,
       height: 768,
     },
-    locale: "en-US",
-    timezoneId: "America/New_York",
+    locale,
+    timezoneId,
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
     extraHTTPHeaders: {
-      "accept-language": "en-US,en;q=0.9",
+      "accept-language": acceptLanguage,
     },
   });
 }
@@ -273,7 +289,7 @@ async function goToNextPage(context: BrowserContext) {
   }
 
   await Promise.all([
-    page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => null),
+    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => null),
     nextLocator.click(),
   ]);
 
@@ -365,6 +381,20 @@ export async function scrapeAmazonSearch(input: {
   }
 }
 
+function getLocaleForStore(): { locale: string; timezoneId: string; acceptLanguage: string } {
+  const hostname = new URL(env.AMAZON_BASE_URL).hostname;
+
+  if (hostname.endsWith("amazon.co.uk"))  return { locale: "en-GB", timezoneId: "Europe/London",    acceptLanguage: "en-GB,en;q=0.9" };
+  if (hostname.endsWith("amazon.de"))     return { locale: "de-DE", timezoneId: "Europe/Berlin",    acceptLanguage: "de-DE,de;q=0.9,en;q=0.8" };
+  if (hostname.endsWith("amazon.fr"))     return { locale: "fr-FR", timezoneId: "Europe/Paris",     acceptLanguage: "fr-FR,fr;q=0.9,en;q=0.8" };
+  if (hostname.endsWith("amazon.it"))     return { locale: "it-IT", timezoneId: "Europe/Rome",      acceptLanguage: "it-IT,it;q=0.9,en;q=0.8" };
+  if (hostname.endsWith("amazon.es"))     return { locale: "es-ES", timezoneId: "Europe/Madrid",    acceptLanguage: "es-ES,es;q=0.9,en;q=0.8" };
+  if (hostname.endsWith("amazon.ca"))     return { locale: "en-CA", timezoneId: "America/Toronto",  acceptLanguage: "en-CA,en;q=0.9" };
+  if (hostname.endsWith("amazon.com.au")) return { locale: "en-AU", timezoneId: "Australia/Sydney", acceptLanguage: "en-AU,en;q=0.9" };
+
+  return { locale: "en-US", timezoneId: "America/New_York", acceptLanguage: "en-US,en;q=0.9" };
+}
+
 function getAmazonCurrency(): string {
   const hostname = new URL(env.AMAZON_BASE_URL).hostname;
 
@@ -384,10 +414,10 @@ function inferCurrencyFromPriceText(text: string | null, fallback: string) {
 
   if (text.includes("LKR")) return "LKR";
   if (text.includes("£")) return "GBP";
-  if (text.includes("$")) return "USD";
-  if (text.includes("€")) return "EUR";
   if (text.includes("A$")) return "AUD";
   if (text.includes("C$")) return "CAD";
+  if (text.includes("$")) return "USD";
+  if (text.includes("€")) return "EUR";
 
   return fallback;
 }

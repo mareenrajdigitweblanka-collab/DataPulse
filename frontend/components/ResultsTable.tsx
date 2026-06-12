@@ -5,6 +5,7 @@ import { EmptyBox } from "./ui";
 import { ShopifyResultsTable } from "./results/ShopifyResultsTable";
 import { EbayResultsTable } from "./results/EbayResultsTable";
 import { GoogleResultsTable } from "./results/GoogleResultsTable";
+import { AmazonResultsTable } from "./results/AmazonResultsTable";
 import { GenericResultsTable } from "./results/GenericResultsTable";
 
 function PlatformTable({
@@ -17,8 +18,8 @@ function PlatformTable({
   if (channel === "shopify") return <ShopifyResultsTable results={results} />;
   if (channel === "ebay") return <EbayResultsTable results={results} />;
   if (channel === "google") return <GoogleResultsTable results={results} />;
+  if (channel === "amazon") return <AmazonResultsTable results={results} />;
 
-  // Amazon and unknown channels — generic fallback until a dedicated table is added
   return <GenericResultsTable results={results} />;
 }
 
