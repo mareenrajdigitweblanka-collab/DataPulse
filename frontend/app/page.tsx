@@ -433,6 +433,7 @@ export default function DashboardPage() {
           </div>
 
           <ResultsTable
+            channel={activeJob?.channel ?? null}
             results={results}
             loading={resultsLoading}
             sortBy={resultSortBy}

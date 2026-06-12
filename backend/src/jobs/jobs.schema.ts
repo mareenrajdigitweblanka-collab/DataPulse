@@ -45,9 +45,9 @@ export const googleFiltersSchema = z.object({
    * SerpApi expects country codes such as us, uk, ca, au, de.
    */
   country: z
-    .enum(["us", "uk", "ca", "au", "de"])
+    .enum(["us", "gb", "ca", "au", "de"])
     .optional()
-    .default("uk"),
+    .default("gb"),
 
   /**
    * Search result language maps to SerpApi hl.

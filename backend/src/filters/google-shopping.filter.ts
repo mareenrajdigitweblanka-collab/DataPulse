@@ -7,25 +7,6 @@ export type GoogleFilterSummary = {
   filtersApplied: string[];
 };
 
-/**
- * Extra optional filters.
- *
- * Your current GoogleFilters schema may not include all of these yet.
- * This keeps the filter file future-ready without breaking the current code.
- *
- * Later, you can add these to googleFiltersSchema if needed:
- * - minRating
- * - minReviewCount
- * - freeShippingOnly
- * - multipleSourcesOnly
- */
-type ExtendedGoogleFilters = GoogleFilters & {
-  minRating?: number;
-  minReviewCount?: number;
-  freeShippingOnly?: boolean;
-  multipleSourcesOnly?: boolean;
-};
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -40,16 +21,6 @@ function includesIgnoreCase(value: string | null, search: string | undefined) {
   if (cleanSearch === "") return true;
 
   return normalizeText(value).includes(cleanSearch);
-}
-
-function hasFreeShipping(product: GoogleShoppingProduct) {
-  const deliveryText = normalizeText(product.delivery);
-
-  return (
-    deliveryText.includes("free delivery") ||
-    deliveryText.includes("free shipping") ||
-    deliveryText.includes("free pickup")
-  );
 }
 
 function hasValidPriceForMinMax(
@@ -74,34 +45,6 @@ function hasValidPriceForMinMax(
   return true;
 }
 
-function hasEnoughRating(
-  product: GoogleShoppingProduct,
-  minRating: number | undefined
-) {
-  if (!isFiniteNumber(minRating)) return true;
-
-  /**
-   * If user asks for minimum rating, unknown rating should fail.
-   */
-  if (!isFiniteNumber(product.rating)) return false;
-
-  return product.rating >= minRating;
-}
-
-function hasEnoughReviews(
-  product: GoogleShoppingProduct,
-  minReviewCount: number | undefined
-) {
-  if (!isFiniteNumber(minReviewCount)) return true;
-
-  /**
-   * If user asks for minimum review count, unknown reviews should fail.
-   */
-  if (!isFiniteNumber(product.reviews)) return false;
-
-  return product.reviews >= minReviewCount;
-}
-
 function matchesStockRequirement(
   product: GoogleShoppingProduct,
   inStockOnly: boolean
@@ -115,40 +58,17 @@ function matchesStockRequirement(
   return product.isInStock === true;
 }
 
-function matchesFreeShippingRequirement(
-  product: GoogleShoppingProduct,
-  freeShippingOnly: boolean
-) {
-  if (!freeShippingOnly) return true;
-
-  return hasFreeShipping(product);
-}
-
-function matchesMultipleSourcesRequirement(
-  product: GoogleShoppingProduct,
-  multipleSourcesOnly: boolean
-) {
-  if (!multipleSourcesOnly) return true;
-
-  return product.multipleSources === true;
-}
-
 export function filterGoogleShoppingProducts(input: {
   products: GoogleShoppingProduct[];
   filters: GoogleFilters;
 }) {
-  const filters = input.filters as ExtendedGoogleFilters;
+  const { filters } = input;
   const filtersApplied: string[] = [];
 
   const minPrice = filters.minPrice;
   const maxPrice = filters.maxPrice;
   const storeName = filters.storeName ?? "";
   const inStockOnly = filters.inStockOnly ?? false;
-
-  const minRating = filters.minRating;
-  const minReviewCount = filters.minReviewCount;
-  const freeShippingOnly = filters.freeShippingOnly ?? false;
-  const multipleSourcesOnly = filters.multipleSourcesOnly ?? false;
 
   if (isFiniteNumber(minPrice)) {
     filtersApplied.push(`Minimum Price: ${minPrice}`);
@@ -166,50 +86,10 @@ export function filterGoogleShoppingProducts(input: {
     filtersApplied.push("In Stock Only");
   }
 
-  if (isFiniteNumber(minRating)) {
-    filtersApplied.push(`Minimum Rating: ${minRating}`);
-  }
-
-  if (isFiniteNumber(minReviewCount)) {
-    filtersApplied.push(`Minimum Review Count: ${minReviewCount}`);
-  }
-
-  if (freeShippingOnly) {
-    filtersApplied.push("Free Shipping Only");
-  }
-
-  if (multipleSourcesOnly) {
-    filtersApplied.push("Multiple Sources Only");
-  }
-
   const filteredProducts = input.products.filter((product) => {
-    if (!hasValidPriceForMinMax(product, minPrice, maxPrice)) {
-      return false;
-    }
-
-    if (!includesIgnoreCase(product.storeName, storeName)) {
-      return false;
-    }
-
-    if (!matchesStockRequirement(product, inStockOnly)) {
-      return false;
-    }
-
-    if (!hasEnoughRating(product, minRating)) {
-      return false;
-    }
-
-    if (!hasEnoughReviews(product, minReviewCount)) {
-      return false;
-    }
-
-    if (!matchesFreeShippingRequirement(product, freeShippingOnly)) {
-      return false;
-    }
-
-    if (!matchesMultipleSourcesRequirement(product, multipleSourcesOnly)) {
-      return false;
-    }
+    if (!hasValidPriceForMinMax(product, minPrice, maxPrice)) return false;
+    if (!includesIgnoreCase(product.storeName, storeName)) return false;
+    if (!matchesStockRequirement(product, inStockOnly)) return false;
 
     return true;
   });

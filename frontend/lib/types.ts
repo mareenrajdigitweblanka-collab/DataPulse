@@ -132,7 +132,7 @@ export type GoogleJobPayload = {
   filters: {
     minPrice?: number;
     maxPrice?: number;
-    country?: "us" | "uk" | "ca" | "au" | "de";
+    country?: "us" | "gb" | "ca" | "au" | "de";
     language?: string;
     sortBy?: "relevance" | "price_asc" | "price_desc" | "rating";
     storeName?: string;

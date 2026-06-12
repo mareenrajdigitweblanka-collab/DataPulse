@@ -31,10 +31,6 @@ export type GoogleShoppingProduct = {
   extensions: string[];
   secondHandCondition: string | null;
   multipleSources: boolean | null;
-
-  serpapiProductApi: string | null;
-  serpapiImmersiveProductApi: string | null;
-  immersiveProductPageToken: string | null;
 };
 
 type SerpApiShoppingResponse = {
@@ -173,6 +169,8 @@ function inferStockStatus(result: SerpApiShoppingResult): boolean | null {
 
   if (text.includes("in stock")) return true;
   if (text.includes("available")) return true;
+  if (text.includes("available to buy")) return true;
+  if (text.includes("available now")) return true;
   if (text.includes("get it today")) return true;
   if (text.includes("free delivery")) return true;
   if (text.includes("free shipping")) return true;
@@ -195,7 +193,6 @@ function getBestStoreUrl(result: SerpApiShoppingResult) {
     result.direct_link ??
     result.link ??
     result.tracking_link ??
-    result.product_link ??
     null
   );
 }
@@ -206,8 +203,6 @@ function getBestProductUrl(result: SerpApiShoppingResult) {
     result.link ??
     result.direct_link ??
     result.tracking_link ??
-    result.serpapi_product_api ??
-    result.serpapi_immersive_product_api ??
     null
   );
 }
@@ -234,8 +229,8 @@ function getOldPrice(result: SerpApiShoppingResult) {
 
 function getCurrency(result: SerpApiShoppingResult) {
   return (
-    result.alternative_price?.currency ??
     inferCurrencyFromPrice(result.price) ??
+    result.alternative_price?.currency ??
     inferCurrencyFromPrice(result.alternative_price?.price) ??
     inferCurrencyFromPrice(result.old_price)
   );
@@ -281,10 +276,6 @@ function mapGoogleShoppingResult(
       typeof result.multiple_sources === "boolean"
         ? result.multiple_sources
         : null,
-
-    serpapiProductApi: result.serpapi_product_api ?? null,
-    serpapiImmersiveProductApi: result.serpapi_immersive_product_api ?? null,
-    immersiveProductPageToken: result.immersive_product_page_token ?? null,
   };
 }
 
@@ -624,21 +615,14 @@ export async function fetchGoogleShoppingProducts(input: {
 
     if (serpApiNextUrl) {
       nextUrl = serpApiNextUrl;
-    } else {
-      /**
-       * Fallback only.
-       *
-       * For newer Google Shopping layouts, SerpApi recommends using
-       * serpapi_pagination.next. But when next is absent and we still received
-       * results, this fallback can still collect additional pages in some cases.
-       */
-      const nextStart = page * env.GOOGLE_SHOPPING_PAGE_SIZE;
-
+    } else if (rawPageResults.length >= env.GOOGLE_SHOPPING_PAGE_SIZE) {
       nextUrl = buildOffsetFallbackUrl({
         query: input.query,
         filters: input.filters,
-        start: nextStart,
+        start: page * env.GOOGLE_SHOPPING_PAGE_SIZE,
       });
+    } else {
+      break;
     }
 
     page += 1;

@@ -17,6 +17,7 @@ import {
   updateJobRunning,
 } from "../jobs/jobs.repository.js";
 
+// Set a timeout of 15 minutes for the entire Google Shopping job.
 const GOOGLE_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
 
 async function withTimeout<T>(
@@ -104,10 +105,6 @@ const worker = new Worker<GoogleJobData>(
     });
 
     await updateJobRunning(data.jobId);
-    await updateJobProgress({
-      jobId: data.jobId,
-      progressPercent: 10,
-    });
     await job.updateProgress(10);
 
     let rawProducts: Awaited<ReturnType<typeof fetchGoogleShoppingProducts>>;

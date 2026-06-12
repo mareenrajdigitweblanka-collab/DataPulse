@@ -59,7 +59,7 @@ const envSchema = z.object({
     .max(50)
     .default(10),
     
-  GOOGLE_SHOPPING_DEFAULT_COUNTRY: z.string().min(2).default("us"),
+  GOOGLE_SHOPPING_DEFAULT_COUNTRY: z.string().min(2).default("gb"),
   GOOGLE_SHOPPING_DEFAULT_LANGUAGE: z.string().min(2).default("en"),
 
   /**
