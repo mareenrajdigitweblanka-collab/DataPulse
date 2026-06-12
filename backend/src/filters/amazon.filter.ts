@@ -19,8 +19,6 @@ export function filterAmazonProducts(input: {
     inStockOnly = false,
     minRating,
     minReviewCount,
-    primeOnly = false,
-    excludeSponsored = false,
   } = input.filters;
 
   if (typeof minPrice === "number") filtersApplied.push("Minimum Price");
@@ -28,8 +26,6 @@ export function filterAmazonProducts(input: {
   if (inStockOnly) filtersApplied.push("In Stock Only");
   if (typeof minRating === "number") filtersApplied.push("Minimum Rating");
   if (typeof minReviewCount === "number") filtersApplied.push("Minimum Review Count");
-  if (primeOnly) filtersApplied.push("Prime Only");
-  if (excludeSponsored) filtersApplied.push("Exclude Sponsored");
 
   const filteredProducts = input.products.filter((product) => {
     if (typeof minPrice === "number") {
@@ -52,14 +48,6 @@ export function filterAmazonProducts(input: {
       if (product.reviewCount === null || product.reviewCount < minReviewCount) {
         return false;
       }
-    }
-
-    if (primeOnly && product.isPrime !== true) {
-      return false;
-    }
-
-    if (excludeSponsored && product.isSponsored === true) {
-      return false;
     }
 
     return true;

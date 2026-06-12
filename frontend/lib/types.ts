@@ -149,8 +149,6 @@ export type AmazonJobPayload = {
     inStockOnly?: boolean;
     minRating?: number;
     minReviewCount?: number;
-    primeOnly?: boolean;
-    excludeSponsored?: boolean;
   };
 };
 

@@ -8,12 +8,10 @@ export type AmazonProduct = {
   currency: string;
   rating: number | null;
   reviewCount: number | null;
-  isPrime: boolean;
   isAvailable: boolean;
   productUrl: string | null;
   imageUrl: string | null;
   ASIN: string;
-  isSponsored: boolean;
 };
 
 export class AmazonBlockedError extends Error {
@@ -226,16 +224,12 @@ async function extractProductsFromPage(context: BrowserContext) {
 
           const text = element.innerText.toLowerCase();
 
-          const isSponsored =
-            text.includes("sponsored") ||
-            element.querySelector("[aria-label='Sponsored']") !== null;
+          const unavailableMessage =
+            element.querySelector(".a-color-price")?.textContent?.toLowerCase() ?? "";
 
-          const isPrime =
-            text.includes("prime") ||
-            element.querySelector("i[aria-label*='Prime']") !== null ||
-            element.querySelector("[aria-label*='Prime']") !== null;
-
-          const isAvailable = !text.includes("currently unavailable");
+          const isAvailable =
+            !unavailableMessage.includes("currently unavailable") &&
+            !text.includes("currently unavailable");
 
           return {
             ASIN: asin,
@@ -247,8 +241,6 @@ async function extractProductsFromPage(context: BrowserContext) {
             reviewText,
             productUrl: link,
             imageUrl: image,
-            isSponsored,
-            isPrime,
             isAvailable,
           };
         })
@@ -263,12 +255,10 @@ async function extractProductsFromPage(context: BrowserContext) {
       currency: inferCurrencyFromPriceText(item.price, getAmazonCurrency()),
       rating: parseRating(item.rating),
       reviewCount: parseReviewCount(item.reviewText),
-      isPrime: item.isPrime,
       isAvailable: item.isAvailable,
       productUrl: normalizeAmazonUrl(item.productUrl),
       imageUrl: item.imageUrl,
       ASIN: item.ASIN,
-      isSponsored: item.isSponsored,
     };
   });
 }
@@ -288,10 +278,8 @@ async function goToNextPage(context: BrowserContext) {
     return false;
   }
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => null),
-    nextLocator.click(),
-  ]);
+  await nextLocator.click();
+  await page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => null);
 
   return true;
 }

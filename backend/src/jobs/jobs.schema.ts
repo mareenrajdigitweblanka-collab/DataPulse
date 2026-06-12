@@ -77,8 +77,6 @@ export const amazonFiltersSchema = z.object({
 
   minRating: z.coerce.number().min(1).max(5).optional(),
   minReviewCount: z.coerce.number().int().min(0).optional(),
-  primeOnly: z.coerce.boolean().optional().default(false),
-  excludeSponsored: z.coerce.boolean().optional().default(false),
 });
 
 /**

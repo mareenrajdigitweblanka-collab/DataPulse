@@ -16,8 +16,6 @@ type AmazonData = {
   currency?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
-  isPrime?: boolean | null;
-  isSponsored?: boolean | null;
   isAvailable?: boolean | null;
   productUrl?: string | null;
   ASIN?: string | null;
@@ -38,8 +36,6 @@ const COLUMNS = [
   "Price",
   "Rating",
   "Reviews",
-  "Prime",
-  "Sponsored",
   "Available",
   "Link",
 ];
@@ -102,14 +98,6 @@ export function AmazonResultsTable({ results }: { results: ResultRow[] }) {
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
                 {formatReviewCount(d.reviewCount)}
-              </td>
-
-              <td className={TD} style={{ color: "var(--text-secondary)" }}>
-                {d.isPrime === true ? "Yes" : d.isPrime === false ? "No" : EMPTY}
-              </td>
-
-              <td className={TD} style={{ color: "var(--text-secondary)" }}>
-                {d.isSponsored === true ? "Yes" : d.isSponsored === false ? "No" : EMPTY}
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
