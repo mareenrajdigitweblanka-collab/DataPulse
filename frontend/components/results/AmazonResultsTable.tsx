@@ -3,6 +3,12 @@
 import type { ResultRow } from "@/lib/types";
 import { EMPTY, TD, TH, formatPrice, ResultImageCell, ResultLinkCell } from "./shared";
 
+function formatReviewCount(count: number | null | undefined): string {
+  if (count == null || !Number.isFinite(count)) return EMPTY;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toString();
+}
+
 type AmazonData = {
   title?: string | null;
   imageUrl?: string | null;
@@ -95,7 +101,7 @@ export function AmazonResultsTable({ results }: { results: ResultRow[] }) {
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
-                {d.reviewCount != null ? d.reviewCount.toLocaleString() : EMPTY}
+                {formatReviewCount(d.reviewCount)}
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
