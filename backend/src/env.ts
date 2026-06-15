@@ -72,15 +72,15 @@ const envSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(100)
-    .default(20),
+    .max(200)
+    .default(100),
 
   AMAZON_MAX_PAGES: z.coerce
     .number()
     .int()
     .min(1)
-    .max(10)
-    .default(2),
+    .max(20)
+    .default(5),
 
   AMAZON_WORKER_CONCURRENCY: z.coerce
     .number()
@@ -99,7 +99,8 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("Invalid environment variables");
+  console.error("Invalid environment variables:");
+  console.error(z.flattenError(parsed.error).fieldErrors);
   process.exit(1);
 }
 
