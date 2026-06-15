@@ -431,7 +431,7 @@ export default function DashboardPage() {
 
         <div className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-            <CreateJobForm loading={jobLoading} onCreateJob={handleCreateJob} />
+            <CreateJobForm loading={jobLoading} prefill={activeJob} onCreateJob={handleCreateJob} />
 
             <section className="space-y-6">
               {activeJob && (

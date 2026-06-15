@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Channel, CreateJobPayload } from "@/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import type { Channel, CreateJobPayload, Job } from "@/lib/types";
 import { CheckboxField, Field } from "./ui";
 
 const CHANNELS: Channel[] = ["shopify", "ebay", "google", "amazon"];
@@ -15,9 +15,11 @@ function toNumberOrUndefined(value: string) {
 
 export function CreateJobForm({
   loading,
+  prefill,
   onCreateJob,
 }: {
   loading: boolean;
+  prefill?: Job | null;
   onCreateJob: (payload: CreateJobPayload) => Promise<void>;
 }) {
   const [channel, setChannel] = useState<Channel>("shopify");
@@ -48,6 +50,48 @@ export function CreateJobForm({
 
   const [minRating, setMinRating] = useState("4");
   const [minReviewCount, setMinReviewCount] = useState("100");
+
+  // Populate form whenever a different job is selected from Recent Jobs.
+  // Keyed on job id so status-only updates (queued→running) don't re-fire.
+  useEffect(() => {
+    if (!prefill) return;
+
+    const f = prefill.filters as Record<string, unknown>;
+
+    setChannel(prefill.channel);
+    setQuery(prefill.query);
+    setMinPrice(f.minPrice != null ? String(f.minPrice) : "");
+    setMaxPrice(f.maxPrice != null ? String(f.maxPrice) : "");
+    setInStockOnly(Boolean(f.inStockOnly));
+
+    // Shopify
+    setStoreUrl(typeof f.storeUrl === "string" ? f.storeUrl : "");
+    setVendor(typeof f.vendor === "string" ? f.vendor : "");
+    setProductType(typeof f.productType === "string" ? f.productType : "");
+
+    // eBay
+    setEbayCondition(
+      (f.condition as "any" | "new" | "used" | "refurbished") ?? "any"
+    );
+    setFreeShippingOnly(Boolean(f.freeShippingOnly));
+    setBuyItNowOnly(Boolean(f.buyItNowOnly));
+
+    // Google
+    setGoogleCountry(
+      (f.country as "us" | "gb" | "ca" | "au" | "de") ?? "gb"
+    );
+    setGoogleLanguage(typeof f.language === "string" ? f.language : "en");
+    setGoogleSortBy(
+      (f.sortBy as "relevance" | "price_asc" | "price_desc" | "rating") ??
+        "relevance"
+    );
+    setStoreName(typeof f.storeName === "string" ? f.storeName : "");
+
+    // Amazon
+    setMinRating(f.minRating != null ? String(f.minRating) : "");
+    setMinReviewCount(f.minReviewCount != null ? String(f.minReviewCount) : "");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.id]);
 
   const helpText = useMemo(() => {
     if (channel === "shopify") {
