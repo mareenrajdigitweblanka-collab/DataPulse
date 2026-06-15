@@ -21,7 +21,7 @@ export function CreateJobForm({
   onCreateJob: (payload: CreateJobPayload) => Promise<void>;
 }) {
   const [channel, setChannel] = useState<Channel>("shopify");
-  const [query, setQuery] = useState("light");
+  const [query, setQuery] = useState("Metal Lamp Shade");
 
   const [storeUrl, setStoreUrl] = useState("https://ledsone.co.uk");
   const [minPrice, setMinPrice] = useState("10");
@@ -38,8 +38,8 @@ export function CreateJobForm({
   const [buyItNowOnly, setBuyItNowOnly] = useState(false);
 
   const [googleCountry, setGoogleCountry] = useState<
-    "us" | "uk" | "ca" | "au" | "de"
-  >("uk");
+    "us" | "gb" | "ca" | "au" | "de"
+  >("gb");
   const [googleLanguage, setGoogleLanguage] = useState("en");
   const [googleSortBy, setGoogleSortBy] = useState<
     "relevance" | "price_asc" | "price_desc" | "rating"
@@ -256,11 +256,11 @@ export function CreateJobForm({
                 value={googleCountry}
                 onChange={(event) =>
                   setGoogleCountry(
-                    event.target.value as "us" | "uk" | "ca" | "au" | "de"
+                    event.target.value as "us" | "gb" | "ca" | "au" | "de"
                   )
                 }
               >
-                <option value="uk">UK</option>
+                <option value="gb">UK</option>
                 <option value="us">US</option>
                 <option value="ca">Canada</option>
                 <option value="au">Australia</option>
