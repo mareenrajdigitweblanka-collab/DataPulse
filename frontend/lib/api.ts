@@ -8,6 +8,7 @@ import type {
   JobsListData,
   MeData,
   ResultsData,
+  ResultsSortBy,
 } from "./types";
 
 const API_BASE_URL =
@@ -151,7 +152,7 @@ export const api = {
     jobId: string,
     page = 1,
     limit = 40,
-    sortBy: "position" | "price_asc" | "price_desc" = "position"
+    sortBy: ResultsSortBy = "position"
   ) {
     return request<ApiSuccess<ResultsData>>(
       `/jobs/${jobId}/results?page=${page}&limit=${limit}&sortBy=${sortBy}`,
