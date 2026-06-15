@@ -52,6 +52,9 @@ There is **no test suite** in this repo — do not assume `pnpm test` exists.
 
 Job status enum: `queued → running → filtering → done` (or `error` / `timeout`). Results can only be fetched, and jobs only deleted, once status is terminal (`done`/`error`/`timeout`).
 
+### Results sorting & pagination
+Sorting is **backend-driven**: `GET /jobs/:id/results` takes a `sortBy` query param (validated by `getResultsQuerySchema` in `jobs.schema.ts`), and `getResultsPageForJob` (`jobs.repository.ts`) sorts the in-memory rows before paginating. The `sortBy` enum is shared in spirit with the frontend `ResultsSortBy` type (`frontend/lib/types.ts`) — keep them in sync. Values: `position` (default), `price_asc`, `price_desc`, `rating_desc`, `reviews_desc`. Sorting reads loosely-typed fields out of `results.data` jsonb (e.g. price from `price ?? minPrice`, reviews from `reviewCount ?? reviews` to cover both Amazon and Google shapes); missing values sink to the bottom and ties fall back to `position`. `rating_desc`/`reviews_desc` only make sense for `google` and `amazon`, so `ResultsTable.tsx` only shows those options for those channels and `page.tsx` resets a stale sort to `position` when the active channel doesn't support it.
+
 ### Per-channel structure
 Each channel is implemented as four parallel files — adding/changing a channel means touching all of them plus `jobs.schema.ts`, `jobs.repository.ts`, and the `if (body.channel === ...)` branch in `jobs.routes.ts`:
 - `src/queue/<channel>.queue.ts` — BullMQ `Queue`, job-data type, `add*Job`, depth/position helpers. Queue names use hyphens (e.g. `queue-amazon`), not colons.
