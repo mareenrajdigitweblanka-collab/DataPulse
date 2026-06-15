@@ -104,28 +104,25 @@ export async function getResultsPageForJob(input: {
   userId: string;
   page: number;
   limit: number;
-  sortBy: "position" | "price_asc" | "price_desc";
+  sortBy: "position" | "price_asc" | "price_desc" | "rating_desc" | "reviews_desc";
 }) {
   const rows = await db
     .select()
     .from(results)
     .where(and(eq(results.jobId, input.jobId), eq(results.userId, input.userId)));
 
-  const getPrice = (row: typeof rows[number]) => {
-    const data = row.data as {
-      price?: number | string | null;
-      minPrice?: number | string | null;
-    };
-
-    const rawPrice = data.price ?? data.minPrice;
-
-    if (typeof rawPrice === "number") {
-      return Number.isFinite(rawPrice) ? rawPrice : null;
+  /**
+   * Parse a possibly-numeric field that may be stored as a number, a
+   * formatted string, or be missing entirely. Returns null when absent.
+   */
+  const parseNumeric = (raw: number | string | null | undefined) => {
+    if (typeof raw === "number") {
+      return Number.isFinite(raw) ? raw : null;
     }
 
-    if (typeof rawPrice === "string") {
+    if (typeof raw === "string") {
       const parsed = Number.parseFloat(
-        rawPrice.replace(/,/g, "").replace(/[^\d.-]/g, "")
+        raw.replace(/,/g, "").replace(/[^\d.-]/g, "")
       );
 
       return Number.isFinite(parsed) ? parsed : null;
@@ -134,26 +131,65 @@ export async function getResultsPageForJob(input: {
     return null;
   };
 
+  const getPrice = (row: typeof rows[number]) => {
+    const data = row.data as {
+      price?: number | string | null;
+      minPrice?: number | string | null;
+    };
+
+    return parseNumeric(data.price ?? data.minPrice);
+  };
+
+  const getRating = (row: typeof rows[number]) => {
+    const data = row.data as { rating?: number | string | null };
+
+    return parseNumeric(data.rating);
+  };
+
+  /**
+   * Amazon stores review count as `reviewCount`, Google as `reviews`.
+   */
+  const getReviews = (row: typeof rows[number]) => {
+    const data = row.data as {
+      reviewCount?: number | string | null;
+      reviews?: number | string | null;
+    };
+
+    return parseNumeric(data.reviewCount ?? data.reviews);
+  };
+
   const sortedRows = [...rows].sort((a, b) => {
     if (input.sortBy === "position") {
       return a.position - b.position;
     }
 
-    const priceA = getPrice(a);
-    const priceB = getPrice(b);
-
     /**
-     * Missing prices go to bottom for both asc and desc.
+     * Pick the value extractor for the active sort. Missing values sink to
+     * the bottom and ties fall back to original position, matching the
+     * existing price-sort behaviour.
      */
-    if (priceA === null && priceB === null) return a.position - b.position;
-    if (priceA === null) return 1;
-    if (priceB === null) return -1;
+    const getValue =
+      input.sortBy === "rating_desc"
+        ? getRating
+        : input.sortBy === "reviews_desc"
+          ? getReviews
+          : getPrice;
+
+    const valueA = getValue(a);
+    const valueB = getValue(b);
+
+    if (valueA === null && valueB === null) return a.position - b.position;
+    if (valueA === null) return 1;
+    if (valueB === null) return -1;
 
     if (input.sortBy === "price_asc") {
-      return priceA - priceB;
+      return valueA - valueB;
     }
 
-    return priceB - priceA;
+    /**
+     * price_desc, rating_desc and reviews_desc all sort high to low.
+     */
+    return valueB - valueA;
   });
 
   const total = sortedRows.length;

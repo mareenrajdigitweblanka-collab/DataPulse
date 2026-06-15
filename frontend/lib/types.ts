@@ -85,7 +85,12 @@ export type ResultRow = {
   data: Record<string, unknown>;
 };
 
-export type ResultsSortBy = "position" | "price_asc" | "price_desc";
+export type ResultsSortBy =
+  | "position"
+  | "price_asc"
+  | "price_desc"
+  | "rating_desc"
+  | "reviews_desc";
 
 export type ResultsData = {
   jobId: string;

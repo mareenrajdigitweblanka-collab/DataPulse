@@ -11,6 +11,7 @@ import { ResultsTable } from "@/components/ResultsTable";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { api } from "@/lib/api";
 import type {
+  Channel,
   CreateJobPayload,
   Job,
   JobStatus,
@@ -19,6 +20,27 @@ import type {
 } from "@/lib/types";
 
 const FINISHED_STATUSES: JobStatus[] = ["done", "error", "timeout"];
+
+const RATING_REVIEW_SORTS: ResultsSortBy[] = ["rating_desc", "reviews_desc"];
+
+function channelSupportsRatingSort(channel: Channel | null) {
+  return channel === "google" || channel === "amazon";
+}
+
+/**
+ * Rating/review sorts only apply to Google and Amazon. For any other channel
+ * fall back to original position so we never send or display a sort the channel
+ * cannot satisfy.
+ */
+function effectiveSortForChannel(
+  channel: Channel | null,
+  sortBy: ResultsSortBy
+): ResultsSortBy {
+  if (RATING_REVIEW_SORTS.includes(sortBy) && !channelSupportsRatingSort(channel)) {
+    return "position";
+  }
+  return sortBy;
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -84,7 +106,14 @@ export default function DashboardPage() {
           await loadJobs(token, jobPage);
 
           if (latestJob.status === "done") {
-            await loadResults(latestJob.id, 1, resultSortBy);
+            const nextSortBy = effectiveSortForChannel(
+              latestJob.channel,
+              resultSortBy
+            );
+            if (nextSortBy !== resultSortBy) {
+              setResultSortBy(nextSortBy);
+            }
+            await loadResults(latestJob.id, 1, nextSortBy);
           }
         }
       } catch (err) {
@@ -208,6 +237,9 @@ export default function DashboardPage() {
       const jobResponse = await api.getJob(token, created.data.jobId);
 
       setActiveJob(jobResponse.data.job);
+      setResultSortBy((current) =>
+        effectiveSortForChannel(jobResponse.data.job.channel, current)
+      );
       await loadJobs(token, 1);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -228,8 +260,13 @@ export default function DashboardPage() {
 
       setActiveJob(freshJob);
 
+      const nextSortBy = effectiveSortForChannel(freshJob.channel, resultSortBy);
+      if (nextSortBy !== resultSortBy) {
+        setResultSortBy(nextSortBy);
+      }
+
       if (freshJob.status === "done") {
-        await loadResults(freshJob.id, 1, resultSortBy);
+        await loadResults(freshJob.id, 1, nextSortBy);
       }
     } catch (err) {
       setError(getErrorMessage(err));
