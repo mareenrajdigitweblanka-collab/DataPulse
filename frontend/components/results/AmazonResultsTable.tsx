@@ -93,7 +93,7 @@ export function AmazonResultsTable({ results }: { results: ResultRow[] }) {
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
-                {d.rating != null ? d.rating.toFixed(1) : EMPTY}★
+                {d.rating != null ? `${d.rating.toFixed(1)}★` : EMPTY}
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
