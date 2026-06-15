@@ -365,6 +365,25 @@ export async function jobsRoutes(app: FastifyInstance) {
       });
     }
 
+    const RATING_SORT_KEYS = ["rating_desc", "reviews_desc"] as const;
+    const CHANNELS_WITH_RATING = ["amazon", "google"] as const;
+
+    if (
+      (RATING_SORT_KEYS as readonly string[]).includes(query.sortBy) &&
+      !(CHANNELS_WITH_RATING as readonly string[]).includes(job.channel)
+    ) {
+      throw new AppError({
+        statusCode: 400,
+        code: "unsupported_sort",
+        message: `Sort '${query.sortBy}' is not supported for channel '${job.channel}'`,
+        details: {
+          channel: job.channel,
+          sortBy: query.sortBy,
+          supportedSortBy: ["position", "price_asc", "price_desc"],
+        },
+      });
+    }
+
     const resultsPage = await getResultsPageForJob({
       jobId: params.id,
       userId: user.id,
