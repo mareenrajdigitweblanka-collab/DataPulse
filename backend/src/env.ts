@@ -72,7 +72,7 @@ const envSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(200)
+    .max(600)
     .default(100),
 
   AMAZON_MAX_PAGES: z.coerce
