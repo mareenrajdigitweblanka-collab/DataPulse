@@ -110,6 +110,38 @@ type SerpApiShoppingResult = {
 
 const SERPAPI_BASE_URL = "https://serpapi.com/search.json";
 
+const COUNTRY_TO_GOOGLE_DOMAIN: Record<string, string> = {
+  us: "google.com",
+  gb: "google.co.uk",
+  ca: "google.ca",
+  au: "google.com.au",
+  de: "google.de",
+  fr: "google.fr",
+  in: "google.co.in",
+  jp: "google.co.jp",
+  it: "google.it",
+  es: "google.es",
+  nl: "google.nl",
+  br: "google.com.br",
+  mx: "google.com.mx",
+};
+
+const COUNTRY_TO_LOCATION: Record<string, string> = {
+  us: "United States",
+  gb: "United Kingdom",
+  ca: "Canada",
+  au: "Australia",
+  de: "Germany",
+  fr: "France",
+  in: "India",
+  jp: "Japan",
+  it: "Italy",
+  es: "Spain",
+  nl: "Netherlands",
+  br: "Brazil",
+  mx: "Mexico",
+};
+
 /**
  * Per-page timeout.
  *
@@ -117,6 +149,22 @@ const SERPAPI_BASE_URL = "https://serpapi.com/search.json";
  * This protects one SerpApi page request from hanging too long.
  */
 const SERPAPI_PAGE_TIMEOUT_MS = 90 * 1000;
+
+/**
+ * SerpApi reports an empty result set via the `error` field rather than an
+ * empty array. These messages are not real failures — they mean Google simply
+ * had nothing for this query/page in this region.
+ */
+function isNoResultsError(serpApiError: string) {
+  const normalized = serpApiError.toLowerCase();
+
+  return (
+    normalized.includes("hasn't returned any results") ||
+    normalized.includes("has not returned any results") ||
+    normalized.includes("no results found") ||
+    normalized.includes("google hasn't returned any results")
+  );
+}
 
 function getRequiredSerpApiKey() {
   if (!env.SERPAPI_API_KEY) {
@@ -409,15 +457,28 @@ function buildInitialSerpApiUrl(input: {
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("output", "json");
 
-  url.searchParams.set(
-    "gl",
-    input.filters.country ?? env.GOOGLE_SHOPPING_DEFAULT_COUNTRY
-  );
+  const countryCode = input.filters.country ?? env.GOOGLE_SHOPPING_DEFAULT_COUNTRY;
+
+  url.searchParams.set("gl", countryCode);
+
+  const googleDomain = COUNTRY_TO_GOOGLE_DOMAIN[countryCode];
+  if (googleDomain) {
+    url.searchParams.set("google_domain", googleDomain);
+  }
+
+  const location = COUNTRY_TO_LOCATION[countryCode];
+  if (location) {
+    url.searchParams.set("location", location);
+  }
 
   url.searchParams.set(
     "hl",
     input.filters.language ?? env.GOOGLE_SHOPPING_DEFAULT_LANGUAGE
   );
+
+  // Force fresh results — avoids stale "no results" cache entries from prior
+  // requests that lacked google_domain/location.
+  url.searchParams.set("no_cache", "true");
 
   /**
    * SerpApi docs focus on start/next pagination.
@@ -426,11 +487,6 @@ function buildInitialSerpApiUrl(input: {
    */
   url.searchParams.set("num", String(env.GOOGLE_SHOPPING_PAGE_SIZE));
   url.searchParams.set("start", "0");
-
-  /**
-   * Do not set no_cache=true by default.
-   * Cached SerpApi searches are useful during development and save credits.
-   */
 
   applyGoogleShoppingApiFilters(url, input.filters);
 
@@ -489,6 +545,22 @@ async function fetchSerpApiPage(url: URL) {
     }
 
     if (json.error) {
+      /**
+       * SerpApi uses this "error" to signal an empty result set, not a real
+       * failure. It happens routinely for thinner-inventory countries and on
+       * deep pagination offsets. Treat it as an empty page so the caller can
+       * stop paginating and keep whatever it has already collected, instead of
+       * throwing and killing the whole job (which then retries 3×).
+       */
+      if (isNoResultsError(json.error)) {
+        console.log({
+          event: "google_shopping_no_results",
+          serpApiError: json.error,
+        });
+
+        return { ...json, shopping_results: [] };
+      }
+
       throw new Error(`SerpApi Google Shopping error: ${json.error}`);
     }
 
