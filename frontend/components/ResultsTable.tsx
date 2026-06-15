@@ -94,6 +94,12 @@ export function ResultsTable({
             <option value="position">Original position</option>
             <option value="price_asc">Price: low to high</option>
             <option value="price_desc">Price: high to low</option>
+            {(channel === "google" || channel === "amazon") && (
+              <>
+                <option value="rating_desc">Rating: high to low</option>
+                <option value="reviews_desc">Reviews: high to low</option>
+              </>
+            )}
           </select>
         </div>
       </div>
