@@ -53,4 +53,7 @@ htmlcov/
 *.tmp
 *.temp
 .DS_Store
+
+# Amazon scraper persistent browser profile
+.amazon-profile/
 ```
