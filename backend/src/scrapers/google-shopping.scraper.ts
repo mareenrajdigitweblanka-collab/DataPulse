@@ -216,7 +216,7 @@ function inferStockStatus(result: SerpApiShoppingResult): boolean | null {
   if (text.includes("unavailable")) return false;
 
   if (text.includes("in stock")) return true;
-  if (text.includes("available")) return true;
+  if (/\bavailable\b/.test(text) && !text.includes("unavailable")) return true;
   if (text.includes("available to buy")) return true;
   if (text.includes("available now")) return true;
   if (text.includes("get it today")) return true;
