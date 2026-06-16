@@ -69,8 +69,8 @@ const worker = new Worker<AmazonJobData>(
         scrapeAmazonSearch({
           query: data.query,
         }),
-        10 * 60 * 1000,
-        "Amazon job timed out after 10 minutes"
+        15 * 60 * 1000,
+        "Amazon job timed out after 15 minutes"
       );
     } catch (error) {
       if (error instanceof AmazonBlockedError) {
