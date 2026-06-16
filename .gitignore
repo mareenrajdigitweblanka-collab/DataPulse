@@ -56,4 +56,5 @@ htmlcov/
 
 # Amazon scraper persistent browser profile
 .amazon-profile/
+.amazon-profile-*/
 ```
