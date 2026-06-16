@@ -47,6 +47,26 @@ function getErrorMessage(error: unknown): string {
   return "Unknown Amazon worker error";
 }
 
+/**
+ * Without a proxy, request rate from one IP is the main block trigger.
+ * Keep a minimum gap between Amazon jobs on this worker so searches are
+ * spaced out across jobs, not just across pages within a job.
+ */
+let lastJobFinishedAt = 0;
+
+async function waitForJobGap() {
+  const gap = env.AMAZON_MIN_JOB_GAP_MS;
+
+  if (gap <= 0 || lastJobFinishedAt === 0) return;
+
+  const remaining = gap - (Date.now() - lastJobFinishedAt);
+
+  if (remaining > 0) {
+    console.log({ event: "amazon_job_cooldown", waitMs: remaining });
+    await new Promise((resolve) => setTimeout(resolve, remaining));
+  }
+}
+
 const worker = new Worker<AmazonJobData>(
   AMAZON_QUEUE_NAME,
   async (job) => {
@@ -57,7 +77,10 @@ const worker = new Worker<AmazonJobData>(
       jobId: data.jobId,
       userId: data.userId,
       query: data.query,
+      attempt: job.attemptsMade,
     });
+
+    await waitForJobGap();
 
     await updateJobRunning(data.jobId);
     await job.updateProgress(10);
@@ -68,6 +91,7 @@ const worker = new Worker<AmazonJobData>(
       rawProducts = await withTimeout(
         scrapeAmazonSearch({
           query: data.query,
+          attempt: job.attemptsMade,
         }),
         15 * 60 * 1000,
         "Amazon job timed out after 15 minutes"
@@ -83,9 +107,11 @@ const worker = new Worker<AmazonJobData>(
 
       /**
        * Throw again so BullMQ retry can run.
-       * Each retry launches a fresh browser session.
+       * Each retry launches a fresh browser session with a rotated identity.
        */
       throw error;
+    } finally {
+      lastJobFinishedAt = Date.now();
     }
 
     await updateJobProgress({

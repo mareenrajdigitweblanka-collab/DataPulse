@@ -91,6 +91,24 @@ const envSchema = z.object({
 
   AMAZON_HEADLESS: z.coerce.boolean().default(true),
 
+  /**
+   * Reuse a persistent browser profile so cookies/session build trust
+   * across jobs from the same IP (important when not using a proxy).
+   */
+  AMAZON_USER_DATA_DIR: z.string().default("./.amazon-profile"),
+
+  /**
+   * Visit the homepage and accept cookies before searching, to seed a
+   * realistic session. Disable to navigate straight to the search page.
+   */
+  AMAZON_WARMUP: z.coerce.boolean().default(true),
+
+  /**
+   * Minimum gap (ms) between Amazon jobs on a single worker. Without a
+   * proxy, request rate from one IP is the main block trigger.
+   */
+  AMAZON_MIN_JOB_GAP_MS: z.coerce.number().int().min(0).default(30000),
+
   AMAZON_PROXY_SERVER: z.string().optional().default(""),
   AMAZON_PROXY_USERNAME: z.string().optional().default(""),
   AMAZON_PROXY_PASSWORD: z.string().optional().default(""),

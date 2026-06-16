@@ -1,6 +1,16 @@
-import { chromium, type Browser, type BrowserContext } from "playwright";
+import { chromium } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import type { BrowserContext, Page } from "playwright";
 
 import { env } from "../env.js";
+
+/**
+ * Register the stealth plugin once at module load. It patches the obvious
+ * automation fingerprints (navigator.webdriver, WebGL vendor, plugins,
+ * chrome runtime, permissions) that give away vanilla Playwright — the
+ * signals Amazon checks regardless of the request IP.
+ */
+chromium.use(StealthPlugin());
 
 export type AmazonProduct = {
   title: string;
@@ -21,7 +31,7 @@ export class AmazonBlockedError extends Error {
   }
 }
 
-function randomDelay(minMs = 1500, maxMs = 4500) {
+function randomDelay(minMs = 2000, maxMs = 6000) {
   const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 
   return new Promise((resolve) => setTimeout(resolve, delay));
@@ -94,58 +104,244 @@ function getProxyConfig() {
   };
 }
 
-async function launchAmazonBrowser() {
-  const browser = await chromium.launch({
+/**
+ * A small pool of realistic, recent Chrome identities. User-agent,
+ * client-hint headers (sec-ch-ua*) and viewport must agree with each
+ * other and with the locale/timezone from getLocaleForStore(), or the
+ * mismatch itself becomes a bot signal. Rotated per retry attempt so a
+ * blocked identity is not reused on the next attempt.
+ */
+type AmazonIdentity = {
+  userAgent: string;
+  secChUa: string;
+  platform: string;
+  viewport: { width: number; height: number };
+};
+
+const IDENTITY_POOL: AmazonIdentity[] = [
+  {
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+    platform: '"Windows"',
+    viewport: { width: 1366, height: 768 },
+  },
+  {
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="135", "Google Chrome";v="135", "Not.A/Brand";v="99"',
+    platform: '"Windows"',
+    viewport: { width: 1536, height: 864 },
+  },
+  {
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+    platform: '"macOS"',
+    viewport: { width: 1440, height: 900 },
+  },
+  {
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="134", "Google Chrome";v="134", "Not.A/Brand";v="99"',
+    platform: '"Windows"',
+    viewport: { width: 1920, height: 1080 },
+  },
+  {
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="135", "Google Chrome";v="135", "Not.A/Brand";v="99"',
+    platform: '"macOS"',
+    viewport: { width: 1512, height: 982 },
+  },
+];
+
+function getIdentity(attempt: number): AmazonIdentity {
+  return IDENTITY_POOL[attempt % IDENTITY_POOL.length];
+}
+
+/**
+ * Launch a persistent context so cookies/session accumulate across jobs
+ * from the same IP — a returning visitor is trusted more than a cold one.
+ * Each identity keeps its own profile dir so per-attempt rotation does not
+ * leak a blocked identity's cookies into the next attempt.
+ */
+async function launchAmazonContext(attempt: number): Promise<BrowserContext> {
+  const identity = getIdentity(attempt);
+  const { locale, timezoneId, acceptLanguage } = getLocaleForStore();
+
+  const options = {
     headless: env.AMAZON_HEADLESS,
 
     /**
-     * Proxy is optional for local testing.
-     * For serious Amazon scraping, proxy is usually required.
+     * Proxy is optional. Without one, success depends on session trust and
+     * a low request rate (see the worker's inter-job cooldown).
      */
     proxy: getProxyConfig(),
 
+    viewport: identity.viewport,
+    locale,
+    timezoneId,
+    userAgent: identity.userAgent,
+    extraHTTPHeaders: {
+      "accept-language": acceptLanguage,
+      "sec-ch-ua": identity.secChUa,
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": identity.platform,
+    },
     args: [
       "--disable-blink-features=AutomationControlled",
       "--disable-dev-shm-usage",
       "--no-sandbox",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--disable-infobars",
+      `--window-size=${identity.viewport.width},${identity.viewport.height}`,
+      `--lang=${locale}`,
     ],
-  });
+  };
 
-  return browser;
+  const userDataDir = `${env.AMAZON_USER_DATA_DIR}-${attempt % IDENTITY_POOL.length}`;
+
+  /**
+   * Prefer real installed Chrome (more trustworthy fingerprint than the
+   * bundled Chromium). Fall back to bundled Chromium where Chrome is not
+   * installed (e.g. dev machines / CI).
+   */
+  try {
+    return await chromium.launchPersistentContext(userDataDir, {
+      channel: "chrome",
+      ...options,
+    });
+  } catch {
+    return await chromium.launchPersistentContext(userDataDir, options);
+  }
 }
 
-async function createAmazonContext(browser: Browser): Promise<BrowserContext> {
-  const { locale, timezoneId, acceptLanguage } = getLocaleForStore();
+async function dismissCookieBanner(page: Page) {
+  const acceptSelectors = [
+    "#sp-cc-accept",
+    "input#sp-cc-accept",
+    "[data-cel-widget='sp-cc-accept']",
+  ];
 
-  return browser.newContext({
-    viewport: {
-      width: 1366,
-      height: 768,
-    },
-    locale,
-    timezoneId,
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    extraHTTPHeaders: {
-      "accept-language": acceptLanguage,
-    },
-  });
+  for (const selector of acceptSelectors) {
+    const button = page.locator(selector).first();
+
+    if ((await button.count()) > 0) {
+      await button.click({ timeout: 3000 }).catch(() => null);
+      return;
+    }
+  }
 }
 
-async function detectAmazonBlock(context: BrowserContext) {
+/**
+ * Search the human way: focus the search box and type the query with
+ * per-keystroke delay, then submit. Produces a natural referer chain and
+ * keystroke timing. Returns false if the box is not present so the caller
+ * can fall back to direct-URL navigation.
+ */
+async function searchViaBox(page: Page, query: string): Promise<boolean> {
+  const box = page.locator("#twotabsearchtextbox");
+
+  if ((await box.count()) === 0) return false;
+
+  try {
+    await box.click({ timeout: 5000 });
+    await box.fill("");
+    await box.pressSequentially(query, {
+      delay: 50 + Math.floor(Math.random() * 100),
+    });
+    await randomDelay(400, 1200);
+    await page.keyboard.press("Enter");
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Light human signal: a small mouse move and scroll before extraction. */
+async function humanScroll(page: Page) {
+  await page.mouse
+    .move(200 + Math.floor(Math.random() * 800), 200 + Math.floor(Math.random() * 400))
+    .catch(() => null);
+
+  await page
+    .evaluate(() => {
+      window.scrollBy(0, 300 + Math.floor(Math.random() * 1200));
+    })
+    .catch(() => null);
+}
+
+/**
+ * Open the search results, optionally warming a session first (homepage +
+ * cookie consent + typed search). Falls back to direct-URL navigation.
+ */
+async function openSearchResults(page: Page, context: BrowserContext, query: string) {
+  const searchUrl = new URL("/s", env.AMAZON_BASE_URL);
+  searchUrl.searchParams.set("k", query);
+
+  if (env.AMAZON_WARMUP) {
+    const homeResponse = await page.goto(env.AMAZON_BASE_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+
+    await detectAmazonBlock(context, homeResponse?.status());
+    await dismissCookieBanner(page);
+    await randomDelay();
+
+    if (await searchViaBox(page, query)) {
+      await page
+        .waitForLoadState("domcontentloaded", { timeout: 30000 })
+        .catch(() => null);
+      await detectAmazonBlock(context);
+      return;
+    }
+  }
+
+  console.log({
+    event: "amazon_navigate_search",
+    url: searchUrl.toString(),
+  });
+
+  const response = await page.goto(searchUrl.toString(), {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
+
+  await detectAmazonBlock(context, response?.status());
+}
+
+async function detectAmazonBlock(context: BrowserContext, status?: number | null) {
+  if (status && [403, 429, 503].includes(status)) {
+    throw new AmazonBlockedError(`Amazon returned HTTP ${status}`);
+  }
+
   const page = context.pages()[0];
 
-  const title = await page.title().catch(() => "");
-  const bodyText = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
+  const url = page.url().toLowerCase();
+  const title = (await page.title().catch(() => "")).toLowerCase();
+  const bodyText = (
+    await page.locator("body").innerText({ timeout: 3000 }).catch(() => "")
+  ).toLowerCase();
 
   const captchaInputCount = await page.locator("#captchacharacters").count();
 
   if (
     captchaInputCount > 0 ||
-    title.toLowerCase().includes("robot check") ||
-    bodyText.toLowerCase().includes("enter the characters you see below") ||
-    bodyText.toLowerCase().includes("sorry, we just need to make sure you're not a robot")
+    url.includes("/errors/validatecaptcha") ||
+    title.includes("robot check") ||
+    bodyText.includes("enter the characters you see below") ||
+    bodyText.includes("sorry, we just need to make sure you're not a robot") ||
+    bodyText.includes("api-services-support@amazon") ||
+    bodyText.includes("automated access") ||
+    bodyText.includes("to discuss automated access")
   ) {
     throw new AmazonBlockedError("Amazon CAPTCHA or robot check detected");
   }
@@ -286,27 +482,15 @@ async function goToNextPage(context: BrowserContext) {
 
 export async function scrapeAmazonSearch(input: {
   query: string;
+  attempt?: number;
 }) {
-  const browser = await launchAmazonBrowser();
+  const attempt = input.attempt ?? 0;
+  const context = await launchAmazonContext(attempt);
 
   try {
-    const context = await createAmazonContext(browser);
-    const page = await context.newPage();
+    const page = context.pages()[0] ?? (await context.newPage());
 
-    const searchUrl = new URL("/s", env.AMAZON_BASE_URL);
-    searchUrl.searchParams.set("k", input.query);
-
-    console.log({
-      event: "amazon_navigate_search",
-      url: searchUrl.toString(),
-    });
-
-    await page.goto(searchUrl.toString(), {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
-
-    await detectAmazonBlock(context);
+    await openSearchResults(page, context, input.query);
 
     const collected: AmazonProduct[] = [];
     const seenAsins = new Set<string>();
@@ -316,6 +500,7 @@ export async function scrapeAmazonSearch(input: {
         timeout: 30000,
       });
 
+      await humanScroll(page);
       await randomDelay();
 
       await detectAmazonBlock(context);
@@ -361,11 +546,9 @@ export async function scrapeAmazonSearch(input: {
       }
     }
 
-    await context.close();
-
     return collected;
   } finally {
-    await browser.close();
+    await context.close();
   }
 }
 

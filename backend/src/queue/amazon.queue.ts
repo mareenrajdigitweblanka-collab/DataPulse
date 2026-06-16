@@ -44,12 +44,14 @@ export async function addAmazonJob(data: AmazonJobData) {
 
     /**
      * Amazon can fail from captcha/block/timeout.
-     * Retry with a fresh browser session.
+     * Each retry launches a fresh browser session with a rotated identity.
+     * Long exponential backoff (30s/60s/120s) lets a blocked IP cool down
+     * instead of being hammered immediately.
      */
-    attempts: 3,
+    attempts: 4,
     backoff: {
       type: "exponential",
-      delay: 10000,
+      delay: 30000,
     },
 
     removeOnComplete: {
