@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import { ApiClientError } from "@/lib/api";
 
 const PASSWORD_RULES = [
   { key: "length", label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -61,11 +62,13 @@ export default function RegisterPage() {
       await register({ name, email, password });
       router.replace("/");
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Registration failed. Please try again.";
-      setError(message);
+      if (err instanceof ApiClientError && err.code === "registration_disabled") {
+        setError("Registration is currently closed. Contact your administrator.");
+      } else if (err instanceof ApiClientError && err.code === "email_not_allowed") {
+        setError("This email is not authorised to register. Contact your administrator.");
+      } else {
+        setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
