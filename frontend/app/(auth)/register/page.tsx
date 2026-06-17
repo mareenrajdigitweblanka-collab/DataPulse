@@ -60,14 +60,12 @@ export default function RegisterPage() {
 
     try {
       await register({ name, email, password });
-      router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
+      router.replace("/");
     } catch (err) {
       if (err instanceof ApiClientError && err.code === "registration_disabled") {
         setError("Registration is currently closed. Contact your administrator.");
       } else if (err instanceof ApiClientError && err.code === "email_not_allowed") {
         setError("This email is not authorised to register. Contact your administrator.");
-      } else if (err instanceof ApiClientError && err.code === "email_send_failed") {
-        setError("We couldn't send a verification email to that address. Please check it and try again.");
       } else {
         setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
       }

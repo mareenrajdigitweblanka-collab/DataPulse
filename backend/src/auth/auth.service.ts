@@ -7,16 +7,12 @@ import { db } from "../db/client.js";
 import { users, passwordResetTokens } from "../db/schema.js";
 import { env } from "../env.js";
 import { AppError } from "../errors/app-error.js";
-import { redisConnection } from "../queue/redis.js";
-import { sendOtpEmail } from "../services/email.service.js";
 
 import type {
     RegisterInput,
     LoginInput,
     ForgotPasswordInput,
     ResetPasswordInput,
-    VerifyOtpInput,
-    ResendOtpInput,
 } from "./auth.schemas.js";
 
 type JwtPayload = {
@@ -47,12 +43,6 @@ function signToken(payload: JwtPayload) {
 function hashResetToken(token: string) {
     return crypto.createHash("sha256").update(token).digest("hex");
 }
-
-const OTP_TTL = 600;
-const RESEND_COOLDOWN = 60;
-
-function otpKey(email: string) { return `otp:${email}`; }
-function resendCooldownKey(email: string) { return `otp:resend:${email}`; }
 
 function assertRegistrationAllowed(email: string): void {
     if (!env.REGISTRATION_ENABLED) {
@@ -93,42 +83,9 @@ export const authService = {
         }
 
         const passwordHash = await bcrypt.hash(input.password, 12);
-        await db.insert(users).values({ name: input.name, email: input.email, passwordHash });
-
-        const otp = String(crypto.randomInt(100000, 999999));
-        await redisConnection.set(otpKey(input.email), otp, "EX", OTP_TTL);
-
-        try {
-            await sendOtpEmail(input.email, otp);
-        } catch {
-            // Roll back: remove user and OTP so they can register again
-            await db.delete(users).where(eq(users.email, input.email));
-            await redisConnection.del(otpKey(input.email));
-            throw new AppError({
-                statusCode: 502,
-                code: "email_send_failed",
-                message: "Failed to send verification email. Please check your email address and try again.",
-            });
-        }
-
-        return { message: "Verification code sent to your email.", email: input.email };
-    },
-
-    async verifyOtp(input: VerifyOtpInput) {
-        const stored = await redisConnection.get(otpKey(input.email));
-
-        if (!stored || stored !== input.otp) {
-            throw new AppError({
-                statusCode: 400,
-                code: "invalid_or_expired_otp",
-                message: "Invalid or expired verification code.",
-            });
-        }
-
-        const [updatedUser] = await db
-            .update(users)
-            .set({ emailVerified: true, updatedAt: new Date() })
-            .where(eq(users.email, input.email))
+        const [newUser] = await db
+            .insert(users)
+            .values({ name: input.name, email: input.email, passwordHash })
             .returning({
                 id: users.id,
                 name: users.name,
@@ -136,53 +93,8 @@ export const authService = {
                 createdAt: users.createdAt,
             });
 
-        if (!updatedUser) {
-            throw new AppError({
-                statusCode: 404,
-                code: "user_not_found",
-                message: "User not found.",
-            });
-        }
-
-        await redisConnection.del(otpKey(input.email));
-
-        const token = signToken({ sub: updatedUser.id, email: updatedUser.email });
-        return { user: toPublicUser(updatedUser), token };
-    },
-
-    async resendOtp(input: ResendOtpInput) {
-        const cooldown = await redisConnection.get(resendCooldownKey(input.email));
-
-        if (cooldown) {
-            throw new AppError({
-                statusCode: 429,
-                code: "resend_too_soon",
-                message: "Please wait before requesting a new code.",
-            });
-        }
-
-        const user = await db.query.users.findFirst({ where: eq(users.email, input.email) });
-
-        if (!user || user.emailVerified) {
-            return { message: "If applicable, a new code has been sent." };
-        }
-
-        const otp = String(crypto.randomInt(100000, 999999));
-        await redisConnection.set(otpKey(input.email), otp, "EX", OTP_TTL);
-
-        try {
-            await sendOtpEmail(input.email, otp);
-        } catch {
-            await redisConnection.del(otpKey(input.email));
-            throw new AppError({
-                statusCode: 502,
-                code: "email_send_failed",
-                message: "Failed to send verification email. Please try again.",
-            });
-        }
-
-        await redisConnection.set(resendCooldownKey(input.email), "1", "EX", RESEND_COOLDOWN);
-        return { message: "A new verification code has been sent." };
+        const token = signToken({ sub: newUser.id, email: newUser.email });
+        return { user: toPublicUser(newUser), token };
     },
 
     async login(input: LoginInput) {
@@ -205,14 +117,6 @@ export const authService = {
                 statusCode: 401,
                 code: "invalid_credentials",
                 message: "Invalid email or password",
-            });
-        }
-
-        if (!user.emailVerified) {
-            throw new AppError({
-                statusCode: 403,
-                code: "email_not_verified",
-                message: "Please verify your email before logging in.",
             });
         }
 

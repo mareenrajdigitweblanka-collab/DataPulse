@@ -7,7 +7,6 @@ import {
   integer,
   index,
   pgEnum,
-  boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -20,7 +19,6 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

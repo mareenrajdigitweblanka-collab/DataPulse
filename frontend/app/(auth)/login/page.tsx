@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
-import { ApiClientError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,10 +34,6 @@ export default function LoginPage() {
       await login({ email, password });
       router.replace("/");
     } catch (err) {
-      if (err instanceof ApiClientError && err.code === "email_not_verified") {
-        router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
-        return;
-      }
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
     } finally {
       setLoading(false);

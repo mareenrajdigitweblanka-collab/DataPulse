@@ -6,8 +6,6 @@ import {
     loginSchema,
     forgotPasswordSchema,
     resetPasswordSchema,
-    verifyOtpSchema,
-    resendOtpSchema,
 } from "./auth.schemas.js";
 import { requireAuth } from "./auth.middleware.js";
 import { AppError } from "../errors/app-error.js";
@@ -29,7 +27,7 @@ export async function authRoutes(app: FastifyInstance) {
         const body = registerSchema.parse(request.body);
         const result = await authService.register(body);
 
-        return reply.code(201).send({
+        return reply.code(200).send({
             success: true,
             data: result,
         });
@@ -85,23 +83,4 @@ export async function authRoutes(app: FastifyInstance) {
         });
     });
 
-    app.post("/verify-otp", async (request, reply) => {
-        const body = verifyOtpSchema.parse(request.body);
-        const result = await authService.verifyOtp(body);
-
-        return reply.send({
-            success: true,
-            data: result,
-        });
-    });
-
-    app.post("/resend-otp", async (request, reply) => {
-        const body = resendOtpSchema.parse(request.body);
-        const result = await authService.resendOtp(body);
-
-        return reply.send({
-            success: true,
-            data: result,
-        });
-    });
 }
