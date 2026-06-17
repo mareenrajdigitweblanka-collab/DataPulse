@@ -17,6 +17,19 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default("7d"),
 
+  REGISTRATION_ENABLED: z.coerce.boolean().default(true),
+
+  ALLOWED_EMAIL_USERNAMES: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return [];
+      return val
+        .split(",")
+        .map((d) => d.trim().toLowerCase())
+        .filter(Boolean);
+    }),
+
   PORT: z.coerce.number().default(4000),
 
   /**

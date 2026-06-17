@@ -59,8 +59,32 @@ function hashResetToken(token: string) {
     return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function assertRegistrationAllowed(email: string): void {
+    if (!env.REGISTRATION_ENABLED) {
+        throw new AppError({
+            statusCode: 403,
+            code: "registration_disabled",
+            message: "Registration is currently disabled. Contact your administrator.",
+        });
+    }
+
+    const allowedUsernames = env.ALLOWED_EMAIL_USERNAMES;
+    if (allowedUsernames.length > 0) {
+        const emailUsername = email.split("@")[0]?.toLowerCase() ?? "";
+        if (!allowedUsernames.some((u) => emailUsername.includes(u))) {
+            throw new AppError({
+                statusCode: 403,
+                code: "email_not_allowed",
+                message: "Registration is restricted to authorised users.",
+            });
+        }
+    }
+}
+
 export const authService = {
     async register(input: RegisterInput) {
+        assertRegistrationAllowed(input.email);
+
         const existingUser = await db.query.users.findFirst({
             where: eq(users.email, input.email),
         });
