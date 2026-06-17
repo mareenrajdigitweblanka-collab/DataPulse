@@ -6,6 +6,8 @@ import {
     loginSchema,
     forgotPasswordSchema,
     resetPasswordSchema,
+    verifyOtpSchema,
+    resendOtpSchema,
 } from "./auth.schemas.js";
 import { requireAuth } from "./auth.middleware.js";
 import { AppError } from "../errors/app-error.js";
@@ -76,6 +78,26 @@ export async function authRoutes(app: FastifyInstance) {
     app.delete("/account", { preHandler: requireAuth }, async (request, reply) => {
         const userId = getAuthenticatedUserId(request);
         const result = await authService.deleteOwnAccount(userId);
+
+        return reply.send({
+            success: true,
+            data: result,
+        });
+    });
+
+    app.post("/verify-otp", async (request, reply) => {
+        const body = verifyOtpSchema.parse(request.body);
+        const result = await authService.verifyOtp(body);
+
+        return reply.send({
+            success: true,
+            data: result,
+        });
+    });
+
+    app.post("/resend-otp", async (request, reply) => {
+        const body = resendOtpSchema.parse(request.body);
+        const result = await authService.resendOtp(body);
 
         return reply.send({
             success: true,

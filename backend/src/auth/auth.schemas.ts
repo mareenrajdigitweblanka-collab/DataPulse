@@ -75,3 +75,16 @@ export const resetPasswordSchema = z.object({
 });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const verifyOtpSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
+  otp: z.string().length(6).regex(/^\d{6}$/, "OTP must be 6 digits"),
+});
+
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+export const resendOtpSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
+});
+
+export type ResendOtpInput = z.infer<typeof resendOtpSchema>;

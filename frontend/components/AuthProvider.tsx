@@ -22,6 +22,7 @@ type AuthContextValue = {
     email: string;
     password: string;
   }) => Promise<void>;
+  verifyOtp: (input: { email: string; otp: string }) => Promise<void>;
   logout: () => void;
 };
 
@@ -101,7 +102,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (input: { name: string; email: string; password: string }) => {
-      const response = await api.register(input);
+      await api.register(input);
+    },
+    []
+  );
+
+  const verifyOtp = useCallback(
+    async (input: { email: string; otp: string }) => {
+      const response = await api.verifyOtp(input);
       const { user: newUser, token: newToken } = response.data;
 
       saveToken(newToken);
@@ -127,9 +135,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       login,
       register,
+      verifyOtp,
       logout,
     }),
-    [user, token, isLoading, isAuthenticated, login, register, logout]
+    [user, token, isLoading, isAuthenticated, login, register, verifyOtp, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

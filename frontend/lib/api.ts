@@ -120,6 +120,20 @@ export const api = {
     });
   },
 
+  verifyOtp(input: { email: string; otp: string }) {
+    return request<ApiSuccess<AuthData>>("/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  resendOtp(input: { email: string }) {
+    return request<ApiSuccess<{ message: string }>>("/auth/resend-otp", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
   /* ─── Jobs ─── */
 
   createJob(token: string, payload: CreateJobPayload) {

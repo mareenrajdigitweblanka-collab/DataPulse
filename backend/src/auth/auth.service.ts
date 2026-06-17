@@ -7,26 +7,23 @@ import { db } from "../db/client.js";
 import { users, passwordResetTokens } from "../db/schema.js";
 import { env } from "../env.js";
 import { AppError } from "../errors/app-error.js";
+import { redisConnection } from "../queue/redis.js";
+import { sendOtpEmail } from "../services/email.service.js";
 
 import type {
     RegisterInput,
     LoginInput,
     ForgotPasswordInput,
     ResetPasswordInput,
+    VerifyOtpInput,
+    ResendOtpInput,
 } from "./auth.schemas.js";
 
-/**
- * JWT payload stored inside the token.
- */
 type JwtPayload = {
     sub: string;
     email: string;
 };
 
-/**
- * Public user object returned to frontend.
- * Never return passwordHash.
- */
 function toPublicUser(user: {
     id: string;
     name: string;
@@ -41,23 +38,21 @@ function toPublicUser(user: {
     };
 }
 
-/**
- * Create JWT token.
- * We use only one token type for this MVP.
- */
 function signToken(payload: JwtPayload) {
     return jwt.sign(payload, env.JWT_SECRET, {
-        expiresIn: env.JWT_EXPIRES_IN as any, // e.g. "7d" for 7 days
+        expiresIn: env.JWT_EXPIRES_IN as any,
     });
 }
 
-/**
- * Hash reset token before storing in DB.
- * Raw reset token is only shown/sent once.
- */
 function hashResetToken(token: string) {
     return crypto.createHash("sha256").update(token).digest("hex");
 }
+
+const OTP_TTL = 600;
+const RESEND_COOLDOWN = 60;
+
+function otpKey(email: string) { return `otp:${email}`; }
+function resendCooldownKey(email: string) { return `otp:resend:${email}`; }
 
 function assertRegistrationAllowed(email: string): void {
     if (!env.REGISTRATION_ENABLED) {
@@ -98,14 +93,42 @@ export const authService = {
         }
 
         const passwordHash = await bcrypt.hash(input.password, 12);
+        await db.insert(users).values({ name: input.name, email: input.email, passwordHash });
 
-        const [createdUser] = await db
-            .insert(users)
-            .values({
-                name: input.name,
-                email: input.email,
-                passwordHash,
-            })
+        const otp = String(crypto.randomInt(100000, 999999));
+        await redisConnection.set(otpKey(input.email), otp, "EX", OTP_TTL);
+
+        try {
+            await sendOtpEmail(input.email, otp);
+        } catch {
+            // Roll back: remove user and OTP so they can register again
+            await db.delete(users).where(eq(users.email, input.email));
+            await redisConnection.del(otpKey(input.email));
+            throw new AppError({
+                statusCode: 502,
+                code: "email_send_failed",
+                message: "Failed to send verification email. Please check your email address and try again.",
+            });
+        }
+
+        return { message: "Verification code sent to your email.", email: input.email };
+    },
+
+    async verifyOtp(input: VerifyOtpInput) {
+        const stored = await redisConnection.get(otpKey(input.email));
+
+        if (!stored || stored !== input.otp) {
+            throw new AppError({
+                statusCode: 400,
+                code: "invalid_or_expired_otp",
+                message: "Invalid or expired verification code.",
+            });
+        }
+
+        const [updatedUser] = await db
+            .update(users)
+            .set({ emailVerified: true, updatedAt: new Date() })
+            .where(eq(users.email, input.email))
             .returning({
                 id: users.id,
                 name: users.name,
@@ -113,15 +136,53 @@ export const authService = {
                 createdAt: users.createdAt,
             });
 
-        const token = signToken({
-            sub: createdUser.id,
-            email: createdUser.email,
-        });
+        if (!updatedUser) {
+            throw new AppError({
+                statusCode: 404,
+                code: "user_not_found",
+                message: "User not found.",
+            });
+        }
 
-        return {
-            user: toPublicUser(createdUser),
-            token,
-        };
+        await redisConnection.del(otpKey(input.email));
+
+        const token = signToken({ sub: updatedUser.id, email: updatedUser.email });
+        return { user: toPublicUser(updatedUser), token };
+    },
+
+    async resendOtp(input: ResendOtpInput) {
+        const cooldown = await redisConnection.get(resendCooldownKey(input.email));
+
+        if (cooldown) {
+            throw new AppError({
+                statusCode: 429,
+                code: "resend_too_soon",
+                message: "Please wait before requesting a new code.",
+            });
+        }
+
+        const user = await db.query.users.findFirst({ where: eq(users.email, input.email) });
+
+        if (!user || user.emailVerified) {
+            return { message: "If applicable, a new code has been sent." };
+        }
+
+        const otp = String(crypto.randomInt(100000, 999999));
+        await redisConnection.set(otpKey(input.email), otp, "EX", OTP_TTL);
+
+        try {
+            await sendOtpEmail(input.email, otp);
+        } catch {
+            await redisConnection.del(otpKey(input.email));
+            throw new AppError({
+                statusCode: 502,
+                code: "email_send_failed",
+                message: "Failed to send verification email. Please try again.",
+            });
+        }
+
+        await redisConnection.set(resendCooldownKey(input.email), "1", "EX", RESEND_COOLDOWN);
+        return { message: "A new verification code has been sent." };
     },
 
     async login(input: LoginInput) {
@@ -129,10 +190,6 @@ export const authService = {
             where: eq(users.email, input.email),
         });
 
-        /**
-         * Use same error for missing user and wrong password.
-         * This prevents attackers from discovering registered emails.
-         */
         if (!user) {
             throw new AppError({
                 statusCode: 401,
@@ -151,15 +208,16 @@ export const authService = {
             });
         }
 
-        const token = signToken({
-            sub: user.id,
-            email: user.email,
-        });
+        if (!user.emailVerified) {
+            throw new AppError({
+                statusCode: 403,
+                code: "email_not_verified",
+                message: "Please verify your email before logging in.",
+            });
+        }
 
-        return {
-            user: toPublicUser(user),
-            token,
-        };
+        const token = signToken({ sub: user.id, email: user.email });
+        return { user: toPublicUser(user), token };
     },
 
     async getMe(userId: string) {
@@ -181,9 +239,7 @@ export const authService = {
             });
         }
 
-        return {
-            user,
-        };
+        return { user };
     },
 
     async forgotPassword(input: ForgotPasswordInput) {
@@ -191,10 +247,6 @@ export const authService = {
             where: eq(users.email, input.email),
         });
 
-        /**
-         * Always return a success-like response.
-         * This prevents email enumeration.
-         */
         if (!user) {
             return {
                 message: "If an account exists, a reset link has been generated",
@@ -204,23 +256,10 @@ export const authService = {
 
         const rawToken = crypto.randomBytes(32).toString("hex");
         const tokenHash = hashResetToken(rawToken);
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        await db.insert(passwordResetTokens).values({ userId: user.id, tokenHash, expiresAt });
 
-        await db.insert(passwordResetTokens).values({
-            userId: user.id,
-            tokenHash,
-            expiresAt,
-        });
-
-        /**
-         * In production:
-         * - Do NOT return resetToken in API response.
-         * - Send it through email as a reset link.
-         *
-         * For local development:
-         * - Returning token is okay so you can test reset password flow.
-         */
         return {
             message: "If an account exists, a reset link has been generated",
             resetToken: rawToken,
@@ -250,32 +289,22 @@ export const authService = {
 
         await db
             .update(users)
-            .set({
-                passwordHash: newPasswordHash,
-                updatedAt: new Date(),
-            })
+            .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
             .where(eq(users.id, resetToken.userId));
 
         await db
             .update(passwordResetTokens)
-            .set({
-                usedAt: new Date(),
-            })
+            .set({ usedAt: new Date() })
             .where(eq(passwordResetTokens.id, resetToken.id));
 
-        return {
-            message: "Password reset successful",
-        };
+        return { message: "Password reset successful" };
     },
 
     async deleteOwnAccount(userId: string) {
         const [deletedUser] = await db
             .delete(users)
             .where(eq(users.id, userId))
-            .returning({
-                id: users.id,
-                email: users.email,
-            });
+            .returning({ id: users.id, email: users.email });
 
         if (!deletedUser) {
             throw new AppError({
@@ -285,8 +314,6 @@ export const authService = {
             });
         }
 
-        return {
-            message: "Account deleted successfully",
-        };
+        return { message: "Account deleted successfully" };
     },
 };

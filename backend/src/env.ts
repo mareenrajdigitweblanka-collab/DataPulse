@@ -19,6 +19,12 @@ const envSchema = z.object({
 
   REGISTRATION_ENABLED: z.coerce.boolean().default(true),
 
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  SMTP_FROM: z.string().default("DataPulse <noreply@datapulse.app>"),
+
   ALLOWED_EMAIL_USERNAMES: z
     .string()
     .optional()
