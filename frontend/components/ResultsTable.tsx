@@ -36,6 +36,8 @@ export function ResultsTable({
   onSortChange,
   onPreviousPage,
   onNextPage,
+  onDownloadCsv,
+  csvLoading,
 }: {
   channel: Channel | null;
   results: ResultRow[];
@@ -49,6 +51,8 @@ export function ResultsTable({
   onSortChange: (sortBy: ResultsSortBy) => void;
   onPreviousPage: () => void;
   onNextPage: () => void;
+  onDownloadCsv: (() => Promise<void>) | null;
+  csvLoading: boolean;
 }) {
   const safeTotalPages = Math.max(totalPages, 1);
 
@@ -72,6 +76,29 @@ export function ResultsTable({
         </div>
 
         <div className="flex items-center gap-2">
+          {onDownloadCsv && (
+            <button
+              type="button"
+              onClick={onDownloadCsv}
+              disabled={csvLoading}
+              className="rounded-lg border px-3 py-2 text-sm font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                borderColor: "var(--border-secondary)",
+                color: "var(--text-secondary)",
+                background: "var(--bg-secondary)",
+              }}
+            >
+              {csvLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="spinner" />
+                  Exporting...
+                </span>
+              ) : (
+                "Download CSV"
+              )}
+            </button>
+          )}
+
           <label
             className="text-sm font-semibold"
             style={{ color: "var(--text-secondary)" }}

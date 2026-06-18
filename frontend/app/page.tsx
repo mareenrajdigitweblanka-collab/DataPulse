@@ -10,6 +10,7 @@ import { RecentJobs } from "@/components/RecentJobs";
 import { ResultsTable } from "@/components/ResultsTable";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { api } from "@/lib/api";
+import { exportToCsv } from "@/lib/export";
 import type {
   Channel,
   CreateJobPayload,
@@ -78,6 +79,7 @@ export default function DashboardPage() {
   const [jobPendingDelete, setJobPendingDelete] = useState<Job | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -194,6 +196,18 @@ export default function DashboardPage() {
   async function handleNextResultsPage() {
     if (!activeJob || !hasNextResultsPage) return;
     await loadResults(activeJob.id, resultPage + 1, resultSortBy);
+  }
+
+  async function handleDownloadCsv() {
+    if (!token || !activeJob) return;
+    setCsvLoading(true);
+    try {
+      await exportToCsv(token, activeJob.id, activeJob.channel);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setCsvLoading(false);
+    }
   }
 
   async function handleResultSortChange(nextSortBy: ResultsSortBy) {
@@ -482,6 +496,8 @@ export default function DashboardPage() {
             onSortChange={handleResultSortChange}
             onPreviousPage={handlePreviousResultsPage}
             onNextPage={handleNextResultsPage}
+            onDownloadCsv={results.length > 0 ? handleDownloadCsv : null}
+            csvLoading={csvLoading}
           />
         </div>
       </div>
