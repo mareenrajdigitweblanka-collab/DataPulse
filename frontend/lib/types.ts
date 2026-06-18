@@ -48,7 +48,6 @@ export type Job = {
   query: string;
   filters: Record<string, unknown>;
   status: JobStatus;
-  queuePosition: number | null;
   progressPercent: number;
   totalScraped: number | null;
   totalFiltered: number | null;

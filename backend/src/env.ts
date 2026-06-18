@@ -32,6 +32,29 @@ const envSchema = z.object({
 
   PORT: z.coerce.number().default(4000),
 
+  CORS_ORIGINS: z
+    .string()
+    .default("http://localhost:3000,http://127.0.0.1:3000")
+    .transform((val) =>
+      (val || "http://localhost:3000,http://127.0.0.1:3000")
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
+    )
+    .refine(
+      (origins) =>
+        origins.length > 0 &&
+        origins.every((o) => {
+          try {
+            new URL(o);
+            return true;
+          } catch {
+            return false;
+          }
+        }),
+      { message: "CORS_ORIGINS must be a non-empty comma-separated list of valid URLs" }
+    ),
+
   /**
    * eBay vars are optional so backend and other platform services can still run
    * even before eBay credentials are added.
