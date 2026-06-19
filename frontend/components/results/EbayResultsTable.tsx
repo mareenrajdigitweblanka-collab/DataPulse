@@ -11,7 +11,10 @@ type EbayData = {
   condition?: string | null;
   isAvailable?: boolean | null;
   isFreeShipping?: boolean | null;
+  shippingCost?: number | null;
+  listingType?: string | null;
   sellerUsername?: string | null;
+  itemId?: string | null;
   itemUrl?: string | null;
 };
 
@@ -30,7 +33,9 @@ const COLUMNS = [
   "Condition",
   "Available",
   "Shipping",
+  "Listing",
   "Seller",
+  "Item ID",
   "Link",
 ];
 
@@ -96,13 +101,26 @@ export function EbayResultsTable({ results }: { results: ResultRow[] }) {
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
                 {d.isFreeShipping === true
                   ? "Free"
-                  : d.isFreeShipping === false
-                    ? "Paid"
-                    : EMPTY}
+                  : typeof d.shippingCost === "number" && d.shippingCost > 0
+                    ? formatPrice(d.shippingCost, d.currency)
+                    : d.isFreeShipping === false
+                      ? "Paid"
+                      : EMPTY}
+              </td>
+
+              <td className={TD} style={{ color: "var(--text-secondary)" }}>
+                {d.listingType?.trim() || EMPTY}
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
                 {d.sellerUsername?.trim() || EMPTY}
+              </td>
+
+              <td
+                className={`${TD} text-xs font-mono`}
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {d.itemId?.trim() || EMPTY}
               </td>
 
               <td className={TD}>
