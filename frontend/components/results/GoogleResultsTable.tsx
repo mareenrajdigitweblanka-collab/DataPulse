@@ -11,6 +11,7 @@ type GoogleData = {
   rating?: number | null;
   reviews?: number | null;
   storeName?: string | null;
+  storeUrl?: string | null;
   productUrl?: string | null;
 };
 
@@ -96,7 +97,19 @@ export function GoogleResultsTable({ results }: { results: ResultRow[] }) {
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
-                {d.storeName?.trim() || EMPTY}
+                {d.storeUrl ? (
+                  <a
+                    href={d.storeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:opacity-80"
+                    style={{ color: "var(--accent-primary)" }}
+                  >
+                    {d.storeName?.trim() || d.storeUrl}
+                  </a>
+                ) : (
+                  d.storeName?.trim() || EMPTY
+                )}
               </td>
 
               <td className={TD}>

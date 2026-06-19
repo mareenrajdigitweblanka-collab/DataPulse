@@ -9,7 +9,9 @@ type ShopifyData = {
   price?: number | null;
   isAvailable?: boolean | null;
   productType?: string | null;
+  vendor?: string | null;
   variantCount?: number | null;
+  handle?: string | null;
   productUrl?: string | null;
 };
 
@@ -27,7 +29,9 @@ const COLUMNS = [
   "Price",
   "Available",
   "Type",
+  "Vendor",
   "Variants",
+  "Handle",
   "Link",
 ];
 
@@ -95,7 +99,18 @@ export function ShopifyResultsTable({ results }: { results: ResultRow[] }) {
               </td>
 
               <td className={TD} style={{ color: "var(--text-secondary)" }}>
+                {d.vendor?.trim() || EMPTY}
+              </td>
+
+              <td className={TD} style={{ color: "var(--text-secondary)" }}>
                 {typeof d.variantCount === "number" ? d.variantCount : EMPTY}
+              </td>
+
+              <td
+                className={`${TD} text-xs font-mono`}
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                {d.handle?.trim() || EMPTY}
               </td>
 
               <td className={TD}>
