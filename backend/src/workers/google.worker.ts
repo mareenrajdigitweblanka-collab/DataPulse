@@ -16,6 +16,7 @@ import {
   updateJobProgress,
   updateJobRunning,
 } from "../jobs/jobs.repository.js";
+import { emitJobEvent } from "../realtime/job-events.js";
 
 // Set a timeout of 15 minutes for the entire Google Shopping job.
 const GOOGLE_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
@@ -106,6 +107,7 @@ const worker = new Worker<GoogleJobData>(
 
     await updateJobRunning(data.jobId);
     await job.updateProgress(10);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "running", progressPercent: 10 });
 
     let rawProducts: Awaited<ReturnType<typeof fetchGoogleShoppingProducts>>;
 
@@ -140,14 +142,17 @@ const worker = new Worker<GoogleJobData>(
       progressPercent: 70,
     });
     await job.updateProgress(70);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "running", progressPercent: 70 });
 
     await updateJobFiltering(data.jobId);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "filtering", progressPercent: 80 });
 
     await updateJobProgress({
       jobId: data.jobId,
       progressPercent: 85,
     });
     await job.updateProgress(85);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "filtering", progressPercent: 85 });
 
     const { filteredProducts, summary } = filterGoogleShoppingProducts({
       products: rawProducts,
@@ -162,6 +167,7 @@ const worker = new Worker<GoogleJobData>(
     });
 
     await job.updateProgress(100);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "done", progressPercent: 100, scrapedCount: summary.totalScraped, resultsCount: filteredProducts.length });
 
     console.log({
       event: "google_job_completed",
@@ -219,11 +225,13 @@ worker.on("failed", async (job, error) => {
    * Final retry failure should also update DB.
    */
   if (isUnrecoverable || isFinalAttempt) {
+    const failStatus = isTimeoutError(message) ? "timeout" : "error";
     await failJob({
       jobId: job.data.jobId,
       message,
-      status: isTimeoutError(message) ? "timeout" : "error",
+      status: failStatus,
     });
+    emitJobEvent({ jobId: job.data.jobId, userId: job.data.userId, status: failStatus, progressPercent: typeof job.progress === "number" ? job.progress : 0 });
   }
 });
 

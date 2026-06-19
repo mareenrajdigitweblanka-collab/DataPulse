@@ -1,6 +1,9 @@
 import { buildApp } from "./app.js";
+import { setupSocketServer } from "./realtime/socket.js";
 
 const app = await buildApp();
+
+setupSocketServer(app.server);
 
 const port = Number(process.env.PORT || 4000);
 

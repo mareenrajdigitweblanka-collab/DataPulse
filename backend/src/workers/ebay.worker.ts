@@ -13,6 +13,7 @@ import {
   updateJobProgress,
   updateJobRunning,
 } from "../jobs/jobs.repository.js";
+import { emitJobEvent } from "../realtime/job-events.js";
 
 /**
  * Timeout wrapper.
@@ -62,6 +63,7 @@ const worker = new Worker<EbayJobData>(
      */
     await updateJobRunning(data.jobId);
     await job.updateProgress(10);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "running", progressPercent: 10 });
 
     let rawProducts;
 
@@ -115,12 +117,14 @@ const worker = new Worker<EbayJobData>(
     });
 
     await job.updateProgress(70);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "running", progressPercent: 70 });
 
     /**
      * Step 4:
      * Mark job as filtering.
      */
     await updateJobFiltering(data.jobId);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "filtering", progressPercent: 80 });
 
     /**
      * Step 5:
@@ -146,6 +150,7 @@ const worker = new Worker<EbayJobData>(
     });
 
     await job.updateProgress(100);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "done", progressPercent: 100, scrapedCount: summary.totalScraped, resultsCount: filteredProducts.length });
 
     console.log({
       event: "ebay_job_completed",
@@ -269,11 +274,13 @@ worker.on("failed", async (job, error) => {
   });
 
   if (isUnrecoverable || isFinalAttempt) {
+    const failStatus = isTimeout ? "timeout" : "error";
     await failJob({
       jobId: job.data.jobId,
       message,
-      status: isTimeout ? "timeout" : "error",
+      status: failStatus,
     });
+    emitJobEvent({ jobId: job.data.jobId, userId: job.data.userId, status: failStatus, progressPercent: typeof job.progress === "number" ? job.progress : 0 });
   }
 });
 

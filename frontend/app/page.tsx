@@ -11,6 +11,7 @@ import { ResultsTable } from "@/components/ResultsTable";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { api } from "@/lib/api";
 import { exportToCsv } from "@/lib/export";
+import { getSocket, disconnectSocket } from "@/lib/socket";
 import type {
   Channel,
   CreateJobPayload,
@@ -94,10 +95,64 @@ export default function DashboardPage() {
   }, [token]);
 
   useEffect(() => {
+    if (!token || !user?.id) return;
+
+    const socket = getSocket(token);
+
+    type JobUpdateEvent = {
+      jobId: string;
+      status: JobStatus;
+      progressPercent: number;
+      scrapedCount?: number;
+      resultsCount?: number;
+    };
+
+    const handleJobUpdate = async (event: JobUpdateEvent) => {
+      setActiveJob((current) => {
+        if (!current || current.id !== event.jobId) return current;
+        return {
+          ...current,
+          status: event.status,
+          progressPercent: event.progressPercent,
+          ...(event.scrapedCount !== undefined ? { totalScraped: event.scrapedCount } : {}),
+          ...(event.resultsCount !== undefined ? { totalFiltered: event.resultsCount } : {}),
+        };
+      });
+
+      if (event.status === "done" && token) {
+        await loadJobs(token, jobPage);
+        setActiveJob((current) => {
+          if (!current || current.id !== event.jobId) return current;
+          const nextSortBy = effectiveSortForChannel(current.channel, resultSortBy);
+          if (nextSortBy !== resultSortBy) setResultSortBy(nextSortBy);
+          loadResults(event.jobId, 1, nextSortBy).catch((err) =>
+            setError(getErrorMessage(err))
+          );
+          return current;
+        });
+      }
+
+      if ((event.status === "error" || event.status === "timeout") && token) {
+        await loadJobs(token, jobPage);
+      }
+    };
+
+    socket.on("job:update", handleJobUpdate);
+
+    return () => {
+      socket.off("job:update", handleJobUpdate);
+      disconnectSocket();
+    };
+  }, [token, user?.id]);
+
+  useEffect(() => {
     if (!token || !activeJob) return;
     if (FINISHED_STATUSES.includes(activeJob.status)) return;
 
     const intervalId = window.setInterval(async () => {
+      const socket = token ? getSocket(token) : null;
+      if (socket?.connected) return;
+
       try {
         const response = await api.getJob(token, activeJob.id);
         const latestJob = response.data.job;
@@ -121,7 +176,7 @@ export default function DashboardPage() {
       } catch (err) {
         setError(getErrorMessage(err));
       }
-    }, 5000);
+    }, 3000);
 
     return () => window.clearInterval(intervalId);
   }, [token, activeJob?.id, activeJob?.status, jobPage, resultSortBy]);

@@ -20,6 +20,7 @@ import {
   updateJobProgress,
   updateJobRunning,
 } from "../jobs/jobs.repository.js";
+import { emitJobEvent } from "../realtime/job-events.js";
 
 async function withTimeout<T>(
   promise: Promise<T>,
@@ -84,6 +85,7 @@ const worker = new Worker<AmazonJobData>(
 
     await updateJobRunning(data.jobId);
     await job.updateProgress(10);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "running", progressPercent: 10 });
 
     let rawProducts;
 
@@ -118,6 +120,7 @@ const worker = new Worker<AmazonJobData>(
       jobId: data.jobId,
       progressPercent: 70,
     });
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "running", progressPercent: 70 });
 
     console.log({
       event: "amazon_raw_products_sample",
@@ -126,6 +129,7 @@ const worker = new Worker<AmazonJobData>(
     });
 
     await updateJobFiltering(data.jobId);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "filtering", progressPercent: 80 });
 
     const { filteredProducts, summary } = filterAmazonProducts({
       products: rawProducts,
@@ -140,6 +144,7 @@ const worker = new Worker<AmazonJobData>(
     });
 
     await job.updateProgress(100);
+    emitJobEvent({ jobId: data.jobId, userId: data.userId, status: "done", progressPercent: 100, scrapedCount: summary.totalScraped, resultsCount: filteredProducts.length });
 
     console.log({
       event: "amazon_job_completed",
@@ -180,14 +185,15 @@ worker.on("failed", async (job, error) => {
 
   if (attemptsMade >= attemptsAllowed) {
     const lower = getErrorMessage(error).toLowerCase();
-
     const isTimeout = lower.includes("timed out");
+    const failStatus = isTimeout ? "timeout" : "error";
 
     await failJob({
       jobId: job.data.jobId,
       message: getErrorMessage(error),
-      status: isTimeout ? "timeout" : "error",
+      status: failStatus,
     });
+    emitJobEvent({ jobId: job.data.jobId, userId: job.data.userId, status: failStatus, progressPercent: typeof job.progress === "number" ? job.progress : 0 });
   }
 });
 
