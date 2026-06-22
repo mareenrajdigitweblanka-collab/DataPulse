@@ -5,6 +5,7 @@ import { registerErrorHandler } from "./plugins/error-handler.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { authRoutes } from "./auth/auth.routes.js";
 import { jobsRoutes } from "./jobs/jobs.routes.js";
+import { seedDevUser } from "./auth/dev-user.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -15,7 +16,7 @@ export async function buildApp() {
     origin: env.CORS_ORIGINS,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Api-Key"],
   });
 
   registerErrorHandler(app);
@@ -28,6 +29,12 @@ export async function buildApp() {
 
   await app.register(jobsRoutes, {
     prefix: "/api/v1/jobs",
+  });
+
+  app.addHook("onReady", async () => {
+    if (env.DEV_API_KEY) {
+      await seedDevUser();
+    }
   });
 
   return app;

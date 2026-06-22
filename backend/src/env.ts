@@ -17,6 +17,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default("7d"),
 
+  DEV_API_KEY: z.string().min(1).optional(),
+
   REGISTRATION_ENABLED: z.coerce.boolean().default(true),
 
   ALLOWED_EMAIL_USERNAMES: z

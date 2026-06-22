@@ -6,6 +6,7 @@ import { env } from "../env.js";
 import { AppError } from "../errors/app-error.js";
 import { db } from "../db/client.js";
 import { users } from "../db/schema.js";
+import { DEV_USER_EMAIL } from "./dev-user.js";
 
 type JwtPayload = {
   sub: string;
@@ -26,6 +27,42 @@ export async function requireAuth(
   request: FastifyRequest,
   _reply: FastifyReply
 ) {
+  const apiKey = request.headers["x-api-key"];
+
+  if (apiKey !== undefined) {
+    if (!env.DEV_API_KEY) {
+      throw new AppError({
+        statusCode: 401,
+        code: "api_key_not_configured",
+        message: "API key authentication is not enabled",
+      });
+    }
+
+    if (apiKey !== env.DEV_API_KEY) {
+      throw new AppError({
+        statusCode: 401,
+        code: "invalid_api_key",
+        message: "API key is invalid",
+      });
+    }
+
+    const devUser = await db.query.users.findFirst({
+      where: eq(users.email, DEV_USER_EMAIL),
+      columns: { id: true, email: true },
+    });
+
+    if (!devUser) {
+      throw new AppError({
+        statusCode: 401,
+        code: "dev_user_not_found",
+        message: "Developer user is not configured. Restart the server.",
+      });
+    }
+
+    request.user = { id: devUser.id, email: devUser.email, authType: "apikey" };
+    return;
+  }
+
   const authHeader = request.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
