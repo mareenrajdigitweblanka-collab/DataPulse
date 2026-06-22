@@ -5,7 +5,7 @@ declare module "fastify" {
     user?: {
       id: string;
       email: string;
-      authType?: "jwt";
+      authType?: "jwt" | "apikey";
     };
   }
 }
